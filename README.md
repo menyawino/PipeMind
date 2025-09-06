@@ -1,0 +1,65 @@
+# WES-Pipeline-PipeMind
+
+An LLM-driven, MCP-integrated, dynamically composable bioinformatics workflow system. This research prototype imports a Snakemake workflow (WES) and exposes each rule as an MCP tool, builds DAGs dynamically via I/O matching, and drives configuration through a conversational CLI.
+
+Highlights
+- Parser converts Snakemake rules -> strict typed tool registry (YAML)
+- FastMCP server exposes tools/data with schemas for discovery and composition
+- LLM intake app (CLI) asks for missing params and produces a fully bound config
+- Dynamic DAG builder composes a minimal graph to achieve a goal artifact
+- Audit log with inputs, params, hashes, and outputs for reproducibility
+
+Quick start
+- Ensure Snakemake workflow exists at `WES-Pipeline-Snakemake/workflow`
+- Install: pip install -e .
+- Parse: pipemind parse WES-Pipeline-Snakemake/workflow -o pipemind/registry/registry.yaml
+- Serve schemas: pipemind serve --host 0.0.0.0 --port 8000
+- Plan goal: pipemind goal --target-output "vcf:/analysis/006_variant_filtering/{sample}.filtered.snp.vcf" --fill '{"sample":"S1","lane":"L001","R":"R1"}'
+- Run a target: pipemind run --target ../output_38/analysis/006_variant_filtering/S1.filtered.snp.vcf
+
+Environment variables
+- PIPEMIND_SNAKEFILE: Path to the Snakefile (default: WES-Pipeline-Snakemake/workflow/Snakefile)
+- OPENAI_BASE_URL: Base URL for OpenAI-compatible servers (LM Studio, Ollama, etc.)
+- PIPEMIND_LLM_MODEL: Model ID (e.g., llama-3.2-3b-instruct, qwen2.5:3b, gpt-4o-mini)
+- OPENAI_API_KEY/OPENAI_API/OPENAI_KEY: API key for OpenAI-compatible servers
+- PIPEMIND_OPENAI_KEY_FILE: Optional path to a file containing the API key; if unset, ./openai.api is used if present.
+
+LLM client examples
+- Local LM Studio (default port 1234): set OPENAI_BASE_URL=http://localhost:1234/v1 and choose a small CPU model; then run:
+	pipemind llm "Summarize the pipeline steps."
+- Ollama (default port 11434): set OPENAI_BASE_URL=http://localhost:11434/v1 and PIPEMIND_LLM_MODEL=llama3.2:3b-instruct
+
+Packaging & distribution
+- Package includes `pipemind/registry/*` by default to run the server out-of-the-box.
+- Build wheel/sdist: python -m build
+- Publish: twine upload dist/*
+
+Design notes
+- Registry schema uses Pydantic for strict typing and YAML as the exchange format.
+- MCP server uses FastMCP to register each rule as a tool; schemas available at /schemas.
+- DAG builder back-chains by matching IO types; future work: richer semantic typing and constraints.
+- CLI is built with Typer and prints JSON plans; integrate with any LLM agent for conversational UX.
+
+References/Citations
+- Snakemake: Koster & Rahmann, Bioinformatics (2012)
+- GATK Best Practices: Van der Auwera & O'Connor, O'Reilly (2020)
+- FastAPI: https://fastapi.tiangolo.com/
+- FastMCP (Model Context Protocol): https://github.com/AnswerDotAI/fastmcp
+- Pydantic: https://docs.pydantic.dev/
+- NetworkX: https://networkx.org/
+ - Model Context Protocol Spec: https://spec.modelcontextprotocol.io/
+
+License: Apache-2.0
+
+How to add a new tool
+- Add a new Snakemake rule or extend an existing .smk in `WES-Pipeline-Snakemake/workflow/rules`
+- Re-run: pipemind parse WES-Pipeline-Snakemake/workflow -o pipemind/registry/registry.yaml
+- The MCP server will automatically pick up the new tool upon restart
+
+Security and reproducibility
+- Access to private files/services is encoded in resources with access flags. Provide tokens via environment or secrets store (out of scope for this prototype).
+- Every MCP tool call writes an audit record under `.pipemind/audit/` capturing parameters and outputs to enable re-runs.
+
+Troubleshooting
+- If the server fails at startup with a Pydantic error: ensure fastmcp>=0.4.1 is installed and re-install the project in your active virtualenv.
+- If LLM calls fail with 429 or auth errors: verify OPENAI_BASE_URL and API key; for local, use LM Studio/Ollama and a small CPU-friendly model.

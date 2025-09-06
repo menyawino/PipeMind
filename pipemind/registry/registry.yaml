@@ -1,0 +1,1816 @@
+resources:
+  cfg.canontran_panel:
+    access: private
+    description: Config resource canontran_panel
+    id: cfg.canontran_panel
+    name: canontran_panel
+    resource_type: file
+    uri: /mnt/omar/pipelines/icc/pipeline/ref/grch38/targets/ICC_169Genes_38_Nextera_V4_ProteinCoding_CanonicalTrans.mergeBed.bed
+  cfg.cds_panel:
+    access: private
+    description: Config resource cds_panel
+    id: cfg.cds_panel
+    name: cds_panel
+    resource_type: file
+    uri: /mnt/omar/pipelines/icc/pipeline/ref/grch38/targets/ICC_169Genes_38_Nextera_V4_ProteinCodingExons.mergeBed.bed
+  cfg.dbsnp:
+    access: private
+    description: Config resource dbsnp
+    id: cfg.dbsnp
+    name: dbsnp
+    resource_type: file
+    uri: /mnt/omar/pipelines/icc/pipeline/ref/grch38/dbsnp/Homo_sapiens_assembly38.dbsnp138.vcf
+  cfg.hapmap:
+    access: private
+    description: Config resource hapmap
+    id: cfg.hapmap
+    name: hapmap
+    resource_type: file
+    uri: /mnt/omar/pipelines/icc/pipeline/ref/grch38/hapmap/hapmap_3.3.hg38.vcf.gz
+  cfg.icc_panel:
+    access: private
+    description: Config resource icc_panel
+    id: cfg.icc_panel
+    name: icc_panel
+    resource_type: file
+    uri: /mnt/omar/pipelines/icc/pipeline/ref/grch38/targets/ICC_169Genes_38_Nextera_V4_ProteinCodingExons_overHang40bp.mergeBed.bed
+  cfg.inputdir:
+    access: public
+    description: Config resource inputdir
+    id: cfg.inputdir
+    name: inputdir
+    resource_type: file
+    uri: ../input/180705_NB551088_0005_AHTLH3AFXX
+  cfg.mills:
+    access: private
+    description: Config resource mills
+    id: cfg.mills
+    name: mills
+    resource_type: file
+    uri: /mnt/omar/pipelines/icc/pipeline/ref/grch38/indels/Mills_and_1000G_gold_standard.indels.hg38.vcf.gz
+  cfg.omni:
+    access: private
+    description: Config resource omni
+    id: cfg.omni
+    name: omni
+    resource_type: file
+    uri: /mnt/omar/pipelines/icc/pipeline/ref/grch38/1000G/1000G_omni2.5.hg38.vcf.gz
+  cfg.outdir:
+    access: public
+    description: Config resource outdir
+    id: cfg.outdir
+    name: outdir
+    resource_type: file
+    uri: ../output_38
+  cfg.reference_genome:
+    access: private
+    description: Config resource reference_genome
+    id: cfg.reference_genome
+    name: reference_genome
+    resource_type: file
+    uri: /mnt/omar/pipelines/icc/pipeline/ref/grch38/genome/GRCh38.primary_assembly.genome.fa
+  cfg.tenk:
+    access: private
+    description: Config resource tenk
+    id: cfg.tenk
+    name: tenk
+    resource_type: file
+    uri: /mnt/omar/pipelines/icc/pipeline/ref/grch38/1000G/1000G.phase3.integrated.sites_only.no_MATCHED_REV.hg38.vcf
+  cfg.tenk_indel:
+    access: private
+    description: Config resource tenk_indel
+    id: cfg.tenk_indel
+    name: tenk_indel
+    resource_type: file
+    uri: /mnt/omar/pipelines/icc/pipeline/ref/grch38/indels/Homo_sapiens_assembly38.known_indels.vcf.gz
+tools:
+  snk.add_read_groups:
+    benchmark: config["outdir"] + "/benchmarks/003_alignment/03_read_grouped/{sample}_add_rg.txt
+    command: gatk AddOrReplaceReadGroups I={input.sorted_bam} O={output.rg_bam} RGID={params.rgid}
+      RGLB={params.rglb} RGPL={params.rgpl} RGPU={params.rgpu} RGSM={params.rgsm}
+      RGCN={params.rgcn} RGDS={params.rgds} VALIDATION_STRINGENCY={params.validation_stringency}
+      > {log} 2>&1
+    conda_env: icc_gatk
+    description: Snakemake rule add_read_groups
+    id: snk.add_read_groups
+    inputs:
+    - description: null
+      io_type: unknown
+      name: sorted_bam
+      path_template: rules.merge_bams.output.merged_bam
+    log_paths:
+    - '{config.outdir}/logs/003_alignment/03_read_grouped/{sample}_add_rg.log'
+    message: '"Adding read groups to BAM for sample {wildcards.sample}"'
+    name: add_read_groups
+    outputs:
+    - description: null
+      io_type: bam
+      name: rg_bam
+      path_template: '{config.outdir}/analysis/003_alignment/03_read_grouped/{sample}.rg.bam'
+    params:
+    - default: null
+      description: '{config.gatk.AddOrReplaceReadGroups.RGID}'
+      enum: null
+      name: rgid
+      param_type: str
+      required: false
+    - default: null
+      description: '{config.gatk.AddOrReplaceReadGroups.RGLB}'
+      enum: null
+      name: rglb
+      param_type: str
+      required: false
+    - default: null
+      description: '{config.gatk.AddOrReplaceReadGroups.RGPL}'
+      enum: null
+      name: rgpl
+      param_type: str
+      required: false
+    - default: null
+      description: '{config.gatk.AddOrReplaceReadGroups.RGPU}'
+      enum: null
+      name: rgpu
+      param_type: str
+      required: false
+    - default: null
+      description: '{config.gatk.AddOrReplaceReadGroups.RGSM}'
+      enum: null
+      name: rgsm
+      param_type: str
+      required: false
+    - default: null
+      description: '{config.gatk.AddOrReplaceReadGroups.RGCN}'
+      enum: null
+      name: rgcn
+      param_type: str
+      required: false
+    - default: null
+      description: '{config.gatk.AddOrReplaceReadGroups.RGDS}'
+      enum: null
+      name: rgds
+      param_type: str
+      required: false
+    - default: null
+      description: '{config.gatk.AddOrReplaceReadGroups.validation_stringency}'
+      enum: null
+      name: validation_stringency
+      param_type: str
+      required: false
+    rule: add_read_groups
+    script: null
+    threads: null
+  snk.annotate_variants:
+    benchmark: config["outdir"] + "/benchmarks/007_annotation/{sample}_annotation.txt
+    command: vep --dir_cache {params.cache_dir} --fasta {params.fasta} --input_file
+      {input.vcf} --output_file {output.annotated_vcf} --vcf --fork {threads} --everything
+      > {log} 2>&1
+    conda_env: icc_07_annotation
+    description: Snakemake rule annotate_variants
+    id: snk.annotate_variants
+    inputs:
+    - description: null
+      io_type: vcf
+      name: vcf
+      path_template: '{config.outdir}/analysis/006_variant_filtering/{sample}.filtered.vcf'
+    log_paths:
+    - '{config.outdir}/logs/007_annotation/{sample}_annotation.log'
+    message: '"Annotating variants for sample {wildcards.sample}"'
+    name: annotate_variants
+    outputs:
+    - description: null
+      io_type: vcf
+      name: annotated_vcf
+      path_template: '{config.outdir}/analysis/007_annotation/{sample}.annotated.vcf'
+    params:
+    - default: null
+      description: '{config.vep.cache_dir}'
+      enum: null
+      name: cache_dir
+      param_type: str
+      required: false
+    - default: null
+      description: '{config.vep.fasta}'
+      enum: null
+      name: fasta
+      param_type: str
+      required: false
+    rule: annotate_variants
+    script: null
+    threads: null
+  snk.apply_bqsr:
+    benchmark: config["outdir"] + "/benchmarks/003_alignment/05_bqsr/{sample}_apply_bqsr.txt
+    command: gatk ApplyBQSRSpark -R {params.ref} -I {input.bam} --bqsr-recal-file
+      {input.recal_table} -O {output.bqsr_bam} --spark-master local[{threads}] --conf
+      spark.ui.enabled=false > {log} 2>&1
+    conda_env: icc_gatk
+    description: Snakemake rule apply_bqsr
+    id: snk.apply_bqsr
+    inputs:
+    - description: null
+      io_type: unknown
+      name: bam
+      path_template: rules.mark_duplicates.output.markdup_bam
+    - description: null
+      io_type: unknown
+      name: recal_table
+      path_template: rules.base_recalibrator.output.recal_table
+    log_paths:
+    - '{config.outdir}/logs/003_alignment/05_bqsr/{sample}_apply_bqsr.log'
+    message: '"Applying BQSR for sample {wildcards.sample}"'
+    name: apply_bqsr
+    outputs:
+    - description: null
+      io_type: bam
+      name: bqsr_bam
+      path_template: '{config.outdir}/analysis/003_alignment/05_bqsr/{sample}.bqsr.bam'
+    params:
+    - default: null
+      description: '{config.reference_genome}'
+      enum: null
+      name: ref
+      param_type: str
+      required: false
+    rule: apply_bqsr
+    script: null
+    threads: 4
+  snk.apply_vqsr_indel:
+    benchmark: config["outdir"] + "/benchmarks/005_variant_calling/{sample}_apply_vqsr_indel.txt
+    command: gatk ApplyVQSR -R {params.ref} -V {input.vcf} -O {output.indel_recal_vcf}
+      --recal-file {input.recal_indel} --tranches-file {input.tranches_indel} -mode
+      INDEL --truth-sensitivity-filter-level 99.0 &> {log}
+    conda_env: icc_gatk
+    description: Snakemake rule apply_vqsr_indel
+    id: snk.apply_vqsr_indel
+    inputs:
+    - description: null
+      io_type: unknown
+      name: vcf
+      path_template: rules.apply_vqsr_snp.output.snp_recal_vcf
+    - description: null
+      io_type: unknown
+      name: recal_indel
+      path_template: rules.vqsr_indel_recalibration.output.recal_indel
+    - description: null
+      io_type: unknown
+      name: tranches_indel
+      path_template: rules.vqsr_indel_recalibration.output.tranches_indel
+    log_paths:
+    - '{config.outdir}/logs/005_variant_calling/{sample}_apply_vqsr_indel.log'
+    message: '"Applying VQSR for Indels for sample {wildcards.sample}"'
+    name: apply_vqsr_indel
+    outputs:
+    - description: null
+      io_type: vcf
+      name: indel_recal_vcf
+      path_template: '{config.outdir}/analysis/005_variant_calling/{sample}.recalibrated_indel.vcf'
+    params:
+    - default: null
+      description: '{config.reference_genome}'
+      enum: null
+      name: ref
+      param_type: str
+      required: false
+    rule: apply_vqsr_indel
+    script: null
+    threads: 11
+  snk.apply_vqsr_snp:
+    benchmark: config["outdir"] + "/benchmarks/005_variant_calling/{sample}_apply_vqsr_snp.txt
+    command: gatk ApplyVQSR -R {params.ref} -V {input.vcf} -O {output.snp_recal_vcf}
+      --recal-file {input.recal_snp} --tranches-file {input.tranches_snp} -mode SNP
+      --truth-sensitivity-filter-level 99.0 &> {log}
+    conda_env: icc_gatk
+    description: Snakemake rule apply_vqsr_snp
+    id: snk.apply_vqsr_snp
+    inputs:
+    - description: null
+      io_type: vcf
+      name: vcf
+      path_template: rules.genotype_gvcfs.output.vcf
+    - description: null
+      io_type: unknown
+      name: recal_snp
+      path_template: rules.vqsr_snp_recalibration.output.recal_snp
+    - description: null
+      io_type: unknown
+      name: tranches_snp
+      path_template: rules.vqsr_snp_recalibration.output.tranches_snp
+    log_paths:
+    - '{config.outdir}/logs/005_variant_calling/{sample}_apply_vqsr_snp.log'
+    message: '"Applying VQSR for SNPs for sample {wildcards.sample}"'
+    name: apply_vqsr_snp
+    outputs:
+    - description: null
+      io_type: vcf
+      name: snp_recal_vcf
+      path_template: '{config.outdir}/analysis/005_variant_calling/{sample}.recalibrated_snp.vcf'
+    params:
+    - default: null
+      description: '{config.reference_genome}'
+      enum: null
+      name: ref
+      param_type: str
+      required: false
+    rule: apply_vqsr_snp
+    script: null
+    threads: 11
+  snk.base_recalibrator:
+    benchmark: config["outdir"] + "/benchmarks/003_alignment/05_bqsr/{sample}_base_recalibrator.txt
+    command: gatk BaseRecalibratorSpark -I {input.bam} -R {params.ref} -O {output.recal_table}
+      --known-sites {params.known_sites} --spark-master local[{threads}] --conf spark.ui.enabled=false
+      > {log} 2>&1
+    conda_env: icc_gatk
+    description: Snakemake rule base_recalibrator
+    id: snk.base_recalibrator
+    inputs:
+    - description: null
+      io_type: unknown
+      name: bam
+      path_template: rules.mark_duplicates.output.markdup_bam
+    log_paths:
+    - '{config.outdir}/logs/003_alignment/05_bqsr/{sample}_base_recalibrator.log'
+    message: '"Running BaseRecalibrator for sample {wildcards.sample}"'
+    name: base_recalibrator
+    outputs:
+    - description: null
+      io_type: unknown
+      name: recal_table
+      path_template: '{config.outdir}/analysis/003_alignment/05_bqsr/{sample}.recal_data.table'
+    params:
+    - default: null
+      description: '{config.reference_genome}'
+      enum: null
+      name: ref
+      param_type: str
+      required: false
+    - default: null
+      description: '{config.dbsnp}'
+      enum: null
+      name: known_sites
+      param_type: str
+      required: false
+    rule: base_recalibrator
+    script: null
+    threads: 4
+  snk.bwa_mem:
+    benchmark: config["outdir"] + "/benchmarks/003_alignment/01_bwa/{sample}_{lane}_alignment.txt
+    command: bwa-mem2 mem -t {threads} {params.ref} {input.fq1} {input.fq2} 2> {log.bwa}
+      | sambamba view -S -f bam -t {threads} -l 0 /dev/stdin 2> {log.sambamba_view}
+      | sambamba sort -t {threads} -o {output.bam} /dev/stdin 2> {log.sambamba_sort}
+    conda_env: icc_04_alignment
+    description: Snakemake rule bwa_mem
+    id: snk.bwa_mem
+    inputs:
+    - description: null
+      io_type: unknown
+      name: fq1
+      path_template: rules.trimming_fp.output.fq1
+    - description: null
+      io_type: unknown
+      name: fq2
+      path_template: rules.trimming_fp.output.fq2
+    log_paths:
+    - '{config.outdir}/logs/003_alignment/01_bwa/{sample}_{lane}_bwa.log'
+    - '{config.outdir}/logs/003_alignment/01_bwa/{sample}_{lane}_sambamba_view.log'
+    - '{config.outdir}/logs/003_alignment/01_bwa/{sample}_{lane}_sambamba_sort.log'
+    message: '"Aligning and converting to BAM for sample {wildcards.sample}_{lane}"'
+    name: bwa_mem
+    outputs:
+    - description: null
+      io_type: bam
+      name: bam
+      path_template: '{config.outdir}/analysis/003_alignment/01_bwa/{sample}_{lane}.bam'
+    params:
+    - default: null
+      description: '{config.reference_genome}'
+      enum: null
+      name: ref
+      param_type: str
+      required: false
+    rule: bwa_mem
+    script: null
+    threads: 11
+  snk.collect_alignment_summary_metrics:
+    benchmark: config["outdir"] + "/benchmarks/004_bam_qc/{sample}_collect_alignment_summary_metrics.txt
+    command: gatk CollectAlignmentSummaryMetrics INPUT={input.bam_prot_coding} OUTPUT={output.alignment_summary_metrics}
+      REFERENCE_SEQUENCE={params.ref} ASSUME_SORTED=true VALIDATION_STRINGENCY=SILENT
+      &> {log}
+    conda_env: icc_gatk
+    description: Snakemake rule collect_alignment_summary_metrics
+    id: snk.collect_alignment_summary_metrics
+    inputs:
+    - description: null
+      io_type: unknown
+      name: bam_prot_coding
+      path_template: rules.filter_bam_prot_coding.output.bam_prot_coding
+    log_paths:
+    - '{config.outdir}/logs/004_bam_qc/{sample}_collect_alignment_summary_metrics.log'
+    message: '"Collecting alignment summary metrics for protein coding target for
+      sample {wildcards.sample}"'
+    name: collect_alignment_summary_metrics
+    outputs:
+    - description: null
+      io_type: txt
+      name: alignment_summary_metrics
+      path_template: '{config.outdir}/analysis/004_bam_qc/{sample}.prot_coding.align_sum_metrics.txt'
+    params:
+    - default: null
+      description: '{config.reference_genome}'
+      enum: null
+      name: ref
+      param_type: str
+      required: false
+    rule: collect_alignment_summary_metrics
+    script: null
+    threads: null
+  snk.collect_alignment_summary_metrics_target:
+    benchmark: config["outdir"] + "/benchmarks/004_bam_qc/{sample}_collect_alignment_summary_metrics_target.txt
+    command: gatk CollectAlignmentSummaryMetrics INPUT={input.bam_target} OUTPUT={output.alignment_summary_metrics_target}
+      REFERENCE_SEQUENCE={params.ref} ASSUME_SORTED=true VALIDATION_STRINGENCY=SILENT
+      &> {log}
+    conda_env: icc_gatk
+    description: Snakemake rule collect_alignment_summary_metrics_target
+    id: snk.collect_alignment_summary_metrics_target
+    inputs:
+    - description: null
+      io_type: unknown
+      name: bam_target
+      path_template: rules.filter_bam_target.output.bam_target
+    log_paths:
+    - '{config.outdir}/logs/004_bam_qc/{sample}_collect_alignment_summary_metrics_target.log'
+    message: '"Collecting alignment summary metrics for target BAM for sample {wildcards.sample}"'
+    name: collect_alignment_summary_metrics_target
+    outputs:
+    - description: null
+      io_type: txt
+      name: alignment_summary_metrics_target
+      path_template: '{config.outdir}/analysis/004_bam_qc/{sample}.target.align_sum_metrics.txt'
+    params:
+    - default: null
+      description: '{config.reference_genome}'
+      enum: null
+      name: ref
+      param_type: str
+      required: false
+    rule: collect_alignment_summary_metrics_target
+    script: null
+    threads: null
+  snk.coverage_analysis:
+    benchmark: null
+    command: bedtools coverage -abam {input.on_target_bam} -b {params.target} > {output.coverage_stats}
+      2> {log} bedtools coverage -abam {input.on_target_bam} -b {params.target} -d
+      > {output.coverage_per_base} 2>> {log} bedtools coverage -abam {input.on_target_bam}
+      -b {params.target} -hist > {output.coverage_histogram} 2>> {log}
+    conda_env: icc_07_annotation
+    description: Snakemake rule coverage_analysis
+    id: snk.coverage_analysis
+    inputs:
+    - description: null
+      io_type: bam
+      name: on_target_bam
+      path_template: '{config.outdir}/analysis/007_annotation/{sample}.on_target.bam'
+    log_paths:
+    - '{config.outdir}/logs/007_annotation/{sample}_coverage_analysis.log'
+    message: '"Performing coverage analysis for sample {wildcards.sample}"'
+    name: coverage_analysis
+    outputs:
+    - description: null
+      io_type: txt
+      name: coverage_stats
+      path_template: '{config.outdir}/analysis/007_annotation/{sample}.coverage_stats.txt'
+    - description: null
+      io_type: txt
+      name: coverage_per_base
+      path_template: '{config.outdir}/analysis/007_annotation/{sample}.coverage_per_base.txt'
+    - description: null
+      io_type: txt
+      name: coverage_histogram
+      path_template: '{config.outdir}/analysis/007_annotation/{sample}.coverage_histogram.txt'
+    params:
+    - default: null
+      description: '{config.target_file}'
+      enum: null
+      name: target
+      param_type: str
+      required: false
+    rule: coverage_analysis
+    script: null
+    threads: null
+  snk.coverage_hist:
+    benchmark: config["outdir"] + "/benchmarks/004_bam_qc/{sample}_coverage_hist.txt
+    command: sambamba view -t {threads} -F "not duplicate" -f bam {input.bam_prot_coding}
+      2> {log} | bedtools coverage -abam stdin -b {params.cds_file} -hist > {output.coverage_hist}
+      2> {log}
+    conda_env: icc_gatk
+    description: Snakemake rule coverage_hist
+    id: snk.coverage_hist
+    inputs:
+    - description: null
+      io_type: unknown
+      name: bam_prot_coding
+      path_template: rules.filter_bam_prot_coding.output.bam_prot_coding
+    log_paths:
+    - '{config.outdir}/logs/004_bam_qc/{sample}_coverage_hist.log'
+    message: '"Calculating coverage histogram for protein coding target for sample
+      {wildcards.sample}"'
+    name: coverage_hist
+    outputs:
+    - description: null
+      io_type: txt
+      name: coverage_hist
+      path_template: '{config.outdir}/analysis/004_bam_qc/{sample}.prot_coding.coverage_hist.txt'
+    params:
+    - default: null
+      description: '{config.cds_panel}'
+      enum: null
+      name: cds_file
+      param_type: str
+      required: false
+    rule: coverage_hist
+    script: null
+    threads: 4
+  snk.coverage_hist_target:
+    benchmark: config["outdir"] + "/benchmarks/004_bam_qc/{sample}_coverage_hist_target.txt
+    command: sambamba view -t {threads} -F "not duplicate" -f bam {input.bam_target}
+      2> {log} | bedtools coverage -abam stdin -b {params.cds_file} -hist > {output.coverage_hist_target}
+      2> {log}
+    conda_env: icc_gatk
+    description: Snakemake rule coverage_hist_target
+    id: snk.coverage_hist_target
+    inputs:
+    - description: null
+      io_type: unknown
+      name: bam_target
+      path_template: rules.filter_bam_target.output.bam_target
+    log_paths:
+    - '{config.outdir}/logs/004_bam_qc/{sample}_coverage_hist_target.log'
+    message: '"Calculating coverage histogram for target BAM for sample {wildcards.sample}"'
+    name: coverage_hist_target
+    outputs:
+    - description: null
+      io_type: txt
+      name: coverage_hist_target
+      path_template: '{config.outdir}/analysis/004_bam_qc/{sample}.target.coverage_hist.txt'
+    params:
+    - default: null
+      description: '{config.cds_panel}'
+      enum: null
+      name: cds_file
+      param_type: str
+      required: false
+    rule: coverage_hist_target
+    script: null
+    threads: 4
+  snk.coverage_stats:
+    benchmark: config["outdir"] + "/benchmarks/004_bam_qc/{sample}_coverage_stats.txt
+    command: sambamba view -t {threads} -F "not duplicate" -f bam {input.bam_prot_coding}
+      2> {log} | bedtools coverage -abam /dev/stdin -b {params.cds_file} 2> {log}
+      | sort -k 1,1 -k 2,2n > {output.coverage_stats} 2> {log}
+    conda_env: icc_gatk
+    description: Snakemake rule coverage_stats
+    id: snk.coverage_stats
+    inputs:
+    - description: null
+      io_type: unknown
+      name: bam_prot_coding
+      path_template: rules.filter_bam_prot_coding.output.bam_prot_coding
+    log_paths:
+    - '{config.outdir}/logs/004_bam_qc/{sample}_coverage_stats.log'
+    message: '"Calculating coverage stats for protein coding target for sample {wildcards.sample}"'
+    name: coverage_stats
+    outputs:
+    - description: null
+      io_type: txt
+      name: coverage_stats
+      path_template: '{config.outdir}/analysis/004_bam_qc/{sample}.prot_coding.coverage_stats.txt'
+    params:
+    - default: null
+      description: '{config.cds_panel}'
+      enum: null
+      name: cds_file
+      param_type: str
+      required: false
+    rule: coverage_stats
+    script: null
+    threads: 4
+  snk.coverage_stats_per_base:
+    benchmark: config["outdir"] + "/benchmarks/004_bam_qc/{sample}_coverage_stats_per_base.txt
+    command: sambamba view -t {threads} -F "not duplicate" -f bam {input.bam_prot_coding}
+      2> {log} | bedtools coverage -abam stdin -b {params.cds_file} -d > {output.coverage_stats_per_base}
+      2> {log}
+    conda_env: icc_gatk
+    description: Snakemake rule coverage_stats_per_base
+    id: snk.coverage_stats_per_base
+    inputs:
+    - description: null
+      io_type: unknown
+      name: bam_prot_coding
+      path_template: rules.filter_bam_prot_coding.output.bam_prot_coding
+    log_paths:
+    - '{config.outdir}/logs/004_bam_qc/{sample}_coverage_stats_per_base.log'
+    message: '"Calculating coverage stats per base for protein coding target for sample
+      {wildcards.sample}"'
+    name: coverage_stats_per_base
+    outputs:
+    - description: null
+      io_type: bed_gz
+      name: coverage_stats_per_base
+      path_template: '{config.outdir}/analysis/004_bam_qc/{sample}.prot_coding.per-base.bed.gz'
+    params:
+    - default: null
+      description: '{config.cds_panel}'
+      enum: null
+      name: cds_file
+      param_type: str
+      required: false
+    rule: coverage_stats_per_base
+    script: null
+    threads: 4
+  snk.coverage_stats_per_base_target:
+    benchmark: config["outdir"] + "/benchmarks/004_bam_qc/{sample}_coverage_stats_per_base_target.txt
+    command: sambamba view -t {threads} -F "not duplicate" -f bam {input.bam_target}
+      2> {log} | bedtools coverage -abam stdin -b {params.cds_file} -d > {output.coverage_stats_per_base_target}
+      2> {log}
+    conda_env: icc_gatk
+    description: Snakemake rule coverage_stats_per_base_target
+    id: snk.coverage_stats_per_base_target
+    inputs:
+    - description: null
+      io_type: unknown
+      name: bam_target
+      path_template: rules.filter_bam_target.output.bam_target
+    log_paths:
+    - '{config.outdir}/logs/004_bam_qc/{sample}_coverage_stats_per_base_target.log'
+    message: '"Calculating coverage stats per base for target BAM for sample {wildcards.sample}"'
+    name: coverage_stats_per_base_target
+    outputs:
+    - description: null
+      io_type: txt
+      name: coverage_stats_per_base_target
+      path_template: '{config.outdir}/analysis/004_bam_qc/{sample}.target.coverage_per_base.txt'
+    params:
+    - default: null
+      description: '{config.cds_panel}'
+      enum: null
+      name: cds_file
+      param_type: str
+      required: false
+    rule: coverage_stats_per_base_target
+    script: null
+    threads: 4
+  snk.coverage_stats_target:
+    benchmark: config["outdir"] + "/benchmarks/004_bam_qc/{sample}_coverage_stats_target.txt
+    command: sambamba view -t {threads} -F "not duplicate" -f bam {input.bam_target}
+      2> {log} | bedtools coverage -abam /dev/stdin -b {params.cds_file} 2> {log}
+      | sort -k 1,1 -k 2,2n > {output.coverage_stats_target} 2> {log}
+    conda_env: icc_gatk
+    description: Snakemake rule coverage_stats_target
+    id: snk.coverage_stats_target
+    inputs:
+    - description: null
+      io_type: unknown
+      name: bam_target
+      path_template: rules.filter_bam_target.output.bam_target
+    log_paths:
+    - '{config.outdir}/logs/004_bam_qc/{sample}_coverage_stats_target.log'
+    message: '"Calculating coverage stats for target BAM for sample {wildcards.sample}"'
+    name: coverage_stats_target
+    outputs:
+    - description: null
+      io_type: txt
+      name: coverage_stats_target
+      path_template: '{config.outdir}/analysis/004_bam_qc/{sample}.target.coverage_stats.txt'
+    params:
+    - default: null
+      description: '{config.cds_panel}'
+      enum: null
+      name: cds_file
+      param_type: str
+      required: false
+    rule: coverage_stats_target
+    script: null
+    threads: 4
+  snk.depth_of_coverage:
+    benchmark: config["outdir"] + "/benchmarks/004_bam_qc/{sample}_depth_of_coverage.txt
+    command: gatk DepthOfCoverage -R {params.ref} -I {input.bam_prot_coding} -O {output.depth_of_coverage}
+      -L {params.cds_file} &> {log}
+    conda_env: icc_gatk
+    description: Snakemake rule depth_of_coverage
+    id: snk.depth_of_coverage
+    inputs:
+    - description: null
+      io_type: unknown
+      name: bam_prot_coding
+      path_template: rules.filter_bam_prot_coding.output.bam_prot_coding
+    log_paths:
+    - '{config.outdir}/logs/004_bam_qc/{sample}_depth_of_coverage.log'
+    message: '"Calculating depth of coverage for sample {wildcards.sample}"'
+    name: depth_of_coverage
+    outputs:
+    - description: null
+      io_type: unknown
+      name: depth_of_coverage
+      path_template: '{config.outdir}/analysis/004_bam_qc/{sample}.prot_coding.depth_of_coverage'
+    params:
+    - default: null
+      description: '{config.reference_genome}'
+      enum: null
+      name: ref
+      param_type: str
+      required: false
+    - default: null
+      description: '{config.cds_panel}'
+      enum: null
+      name: cds_file
+      param_type: str
+      required: false
+    rule: depth_of_coverage
+    script: null
+    threads: null
+  snk.depth_of_coverage_target:
+    benchmark: config["outdir"] + "/benchmarks/004_bam_qc/{sample}_depth_of_coverage_target.txt
+    command: gatk DepthOfCoverage -R {params.ref} -I {input.bam_target} -O {output.depth_of_coverage_target}
+      -L {params.cds_file} &> {log}
+    conda_env: icc_gatk
+    description: Snakemake rule depth_of_coverage_target
+    id: snk.depth_of_coverage_target
+    inputs:
+    - description: null
+      io_type: unknown
+      name: bam_target
+      path_template: rules.filter_bam_target.output.bam_target
+    log_paths:
+    - '{config.outdir}/logs/004_bam_qc/{sample}_depth_of_coverage_target.log'
+    message: '"Calculating depth of coverage for target BAM for sample {wildcards.sample}"'
+    name: depth_of_coverage_target
+    outputs:
+    - description: null
+      io_type: unknown
+      name: depth_of_coverage_target
+      path_template: '{config.outdir}/analysis/004_bam_qc/{sample}.target.depth_of_coverage'
+    params:
+    - default: null
+      description: '{config.reference_genome}'
+      enum: null
+      name: ref
+      param_type: str
+      required: false
+    - default: null
+      description: '{config.cds_panel}'
+      enum: null
+      name: cds_file
+      param_type: str
+      required: false
+    rule: depth_of_coverage_target
+    script: null
+    threads: null
+  snk.extract_on_target_reads:
+    benchmark: null
+    command: bedtools intersect -abam {input.recal_bam} -b {params.target} > {output.on_target_bam}
+      2> {log}
+    conda_env: icc_07_annotation
+    description: Snakemake rule extract_on_target_reads
+    id: snk.extract_on_target_reads
+    inputs:
+    - description: null
+      io_type: bam
+      name: recal_bam
+      path_template: '{config.outdir}/analysis/006_variant_filtering/{sample}.recal.bam'
+    log_paths:
+    - '{config.outdir}/logs/007_annotation/{sample}_extract_on_target_reads.log'
+    message: '"Extracting on-target reads for sample {wildcards.sample}"'
+    name: extract_on_target_reads
+    outputs:
+    - description: null
+      io_type: bam
+      name: on_target_bam
+      path_template: '{config.outdir}/analysis/007_annotation/{sample}.on_target.bam'
+    params:
+    - default: null
+      description: '{config.target_file}'
+      enum: null
+      name: target
+      param_type: str
+      required: false
+    rule: extract_on_target_reads
+    script: null
+    threads: null
+  snk.filter_bam_canon_tran:
+    benchmark: config["outdir"] + "/benchmarks/003_alignment/06_filtering/{sample}_filter_bam_canon_tran.txt
+    command: sambamba view -t {threads} -L {params.CanonTranFile} -f bam -F "mapping_quality
+      > 8" {input.bam} -o {output.bam_canon_tran} 2> {log.sambamba_view}
+    conda_env: icc_gatk
+    description: Snakemake rule filter_bam_canon_tran
+    id: snk.filter_bam_canon_tran
+    inputs:
+    - description: null
+      io_type: unknown
+      name: bam
+      path_template: rules.apply_bqsr.output.bqsr_bam
+    log_paths:
+    - '{config.outdir}/logs/003_alignment/06_filtering/{sample}_filter_bam_canon_tran.log'
+    - '{config.outdir}/logs/004_bam_qc/{sample}_flagstat_prot_coding.log'
+    message: '"Filtering BAM for canonical transcript regions for sample {wildcards.sample}"'
+    name: filter_bam_canon_tran
+    outputs:
+    - description: null
+      io_type: bam
+      name: bam_canon_tran
+      path_template: '{config.outdir}/analysis/003_alignment/06_filtering/{sample}.canon_tran.bam'
+    params:
+    - default: null
+      description: '{config.canontran_panel}'
+      enum: null
+      name: CanonTranFile
+      param_type: str
+      required: false
+    rule: filter_bam_canon_tran
+    script: null
+    threads: 1
+  snk.filter_bam_prot_coding:
+    benchmark: config["outdir"] + "/benchmarks/003_alignment/06_filtering/{sample}_filter_bam_prot_coding.txt
+    command: sambamba view -t {threads} -L {params.CDSFile} -f bam -F "mapping_quality
+      > 8" {input.bam} -o {output.bam_prot_coding} 2> {log}
+    conda_env: icc_gatk
+    description: Snakemake rule filter_bam_prot_coding
+    id: snk.filter_bam_prot_coding
+    inputs:
+    - description: null
+      io_type: unknown
+      name: bam
+      path_template: rules.apply_bqsr.output.bqsr_bam
+    log_paths:
+    - '{config.outdir}/logs/003_alignment/06_filtering/{sample}_filter_bam_prot_coding.log'
+    message: '"Filtering BAM for protein coding regions for sample {wildcards.sample}"'
+    name: filter_bam_prot_coding
+    outputs:
+    - description: null
+      io_type: bam
+      name: bam_prot_coding
+      path_template: '{config.outdir}/analysis/003_alignment/06_filtering/{sample}.prot_coding.bam'
+    params:
+    - default: null
+      description: '{config.cds_panel}'
+      enum: null
+      name: CDSFile
+      param_type: str
+      required: false
+    rule: filter_bam_prot_coding
+    script: null
+    threads: 1
+  snk.filter_bam_target:
+    benchmark: config["outdir"] + "/benchmarks/003_alignment/06_filtering/{sample}_filter_bam_target.txt
+    command: sambamba view -t {threads} -L {params.TargetFile} -f bam -F "mapping_quality
+      > 8" {input.bam} -o {output.bam_target} 2> {log}
+    conda_env: icc_gatk
+    description: Snakemake rule filter_bam_target
+    id: snk.filter_bam_target
+    inputs:
+    - description: null
+      io_type: unknown
+      name: bam
+      path_template: rules.apply_bqsr.output.bqsr_bam
+    log_paths:
+    - '{config.outdir}/logs/003_alignment/06_filtering/{sample}_filter_bam_target.log'
+    message: '"Filtering BAM for target regions for sample {wildcards.sample}"'
+    name: filter_bam_target
+    outputs:
+    - description: null
+      io_type: bam
+      name: bam_target
+      path_template: '{config.outdir}/analysis/003_alignment/06_filtering/{sample}.target.bam'
+    params:
+    - default: null
+      description: '{config.icc_panel}'
+      enum: null
+      name: TargetFile
+      param_type: str
+      required: false
+    rule: filter_bam_target
+    script: null
+    threads: 1
+  snk.filter_indels:
+    benchmark: config["outdir"] + "/benchmarks/006_variant_filtering/{sample}_filter_indels.txt
+    command: gatk VariantFiltration -R {params.ref} -V {input.indel_vcf} -O {output.filtered_indel_vcf}
+      --filter-expression "QD < 2.0" --filter-expression "ReadPosRankSum < -20.0"
+      --filter-expression "FS > 200.0" --filter-name "QDFilter" --filter-name "ReadPosFilter"
+      --filter-name "FSFilter" --intervals {params.target} &> {log}
+    conda_env: icc_gatk
+    description: Snakemake rule filter_indels
+    id: snk.filter_indels
+    inputs:
+    - description: null
+      io_type: unknown
+      name: indel_vcf
+      path_template: rules.split_vcfs.output.indel_vcf
+    log_paths:
+    - '{config.outdir}/logs/006_variant_filtering/{sample}_filter_indels.log'
+    message: '"Filtering Indels for sample {wildcards.sample}"'
+    name: filter_indels
+    outputs:
+    - description: null
+      io_type: vcf
+      name: filtered_indel_vcf
+      path_template: '{config.outdir}/analysis/006_variant_filtering/{sample}.filtered.indel.vcf'
+    params:
+    - default: null
+      description: '{config.reference_genome}'
+      enum: null
+      name: ref
+      param_type: str
+      required: false
+    - default: null
+      description: '{config.icc_panel}'
+      enum: null
+      name: target
+      param_type: str
+      required: false
+    rule: filter_indels
+    script: null
+    threads: null
+  snk.filter_snps:
+    benchmark: config["outdir"] + "/benchmarks/006_variant_filtering/{sample}_filter_snps.txt
+    command: gatk VariantFiltration -R {params.ref} -V {input.snp_vcf} -O {output.filtered_snp_vcf}
+      --filter-expression "QD < 2.0" --filter-expression "FS > 60.0" --filter-expression
+      "MQ < 40.0" --filter-expression "MQRankSum < -12.5" --filter-expression "ReadPosRankSum
+      < -8.0" --filter-name "QDFilter" --filter-name "FSFilter" --filter-name "MQFilter"
+      --filter-name "MQRankSumFilter" --filter-name "ReadPosFilter" --intervals {params.target}
+      &> {log}
+    conda_env: icc_gatk
+    description: Snakemake rule filter_snps
+    id: snk.filter_snps
+    inputs:
+    - description: null
+      io_type: unknown
+      name: snp_vcf
+      path_template: rules.split_vcfs.output.snp_vcf
+    log_paths:
+    - '{config.outdir}/logs/006_variant_filtering/{sample}_filter_snps.log'
+    message: '"Filtering SNPs for sample {wildcards.sample}"'
+    name: filter_snps
+    outputs:
+    - description: null
+      io_type: vcf
+      name: filtered_snp_vcf
+      path_template: '{config.outdir}/analysis/006_variant_filtering/{sample}.filtered.snp.vcf'
+    params:
+    - default: null
+      description: '{config.reference_genome}'
+      enum: null
+      name: ref
+      param_type: str
+      required: false
+    - default: null
+      description: '{config.icc_panel}'
+      enum: null
+      name: target
+      param_type: str
+      required: false
+    rule: filter_snps
+    script: null
+    threads: null
+  snk.flagstat_canon_tran:
+    benchmark: config["outdir"] + "/benchmarks/004_bam_qc/{sample}_flagstat_canon_tran.txt
+    command: sambamba view -t {threads} -F "not secondary_alignment" -f bam -l 0 {input.bam_canon_tran}
+      2> {log} | sambamba flagstat -t {threads} /dev/stdin > {output.flagstat_canon_tran}
+      2> {log}
+    conda_env: icc_gatk
+    description: Snakemake rule flagstat_canon_tran
+    id: snk.flagstat_canon_tran
+    inputs:
+    - description: null
+      io_type: unknown
+      name: bam_canon_tran
+      path_template: rules.filter_bam_canon_tran.output.bam_canon_tran
+    log_paths:
+    - '{config.outdir}/logs/004_bam_qc/{sample}_flagstat_canon_tran.log'
+    message: '"Flagstat for canonical transcript BAM for sample {wildcards.sample}"'
+    name: flagstat_canon_tran
+    outputs:
+    - description: null
+      io_type: unknown
+      name: flagstat_canon_tran
+      path_template: '{config.outdir}/analysis/004_bam_qc/{sample}.canon_tran.flagstat'
+    params: []
+    rule: flagstat_canon_tran
+    script: null
+    threads: 4
+  snk.flagstat_original:
+    benchmark: config["outdir"] + "/benchmarks/004_bam_qc/{sample}_flagstat_original.txt
+    command: sambamba view -t {threads} -F "not secondary_alignment" -f bam -l 0 {input.bam}
+      2> {log} | sambamba flagstat -t {threads} /dev/stdin > {output.flagstat_original}
+      2> {log}
+    conda_env: icc_gatk
+    description: Snakemake rule flagstat_original
+    id: snk.flagstat_original
+    inputs:
+    - description: null
+      io_type: unknown
+      name: bam
+      path_template: rules.apply_bqsr.output.bqsr_bam
+    log_paths:
+    - '{config.outdir}/logs/004_bam_qc/{sample}_flagstat_original.log'
+    message: '"Flagstat for original BAM for sample {wildcards.sample}"'
+    name: flagstat_original
+    outputs:
+    - description: null
+      io_type: unknown
+      name: flagstat_original
+      path_template: '{config.outdir}/analysis/004_bam_qc/{sample}.flagstat'
+    params: []
+    rule: flagstat_original
+    script: null
+    threads: 4
+  snk.flagstat_prot_coding:
+    benchmark: config["outdir"] + "/benchmarks/004_bam_qc/{sample}_flagstat_prot_coding.txt
+    command: sambamba view -t {threads} -F "not secondary_alignment" -f bam -l 0 {input.bam_prot_coding}
+      2> {log} | sambamba flagstat -t {threads} /dev/stdin > {output.flagstat_prot_coding}
+      2> {log}
+    conda_env: icc_gatk
+    description: Snakemake rule flagstat_prot_coding
+    id: snk.flagstat_prot_coding
+    inputs:
+    - description: null
+      io_type: unknown
+      name: bam_prot_coding
+      path_template: rules.filter_bam_prot_coding.output.bam_prot_coding
+    log_paths:
+    - '{config.outdir}/logs/004_bam_qc/{sample}_flagstat_prot_coding.log'
+    message: '"Flagstat for protein coding BAM for sample {wildcards.sample}"'
+    name: flagstat_prot_coding
+    outputs:
+    - description: null
+      io_type: unknown
+      name: flagstat_prot_coding
+      path_template: '{config.outdir}/analysis/004_bam_qc/{sample}.prot_coding.flagstat'
+    params: []
+    rule: flagstat_prot_coding
+    script: null
+    threads: 4
+  snk.flagstat_report:
+    benchmark: null
+    command: samtools flagstat {input.on_target_bam} > {output.flagstat} 2> {log}
+    conda_env: icc_07_annotation
+    description: Snakemake rule flagstat_report
+    id: snk.flagstat_report
+    inputs:
+    - description: null
+      io_type: bam
+      name: on_target_bam
+      path_template: '{config.outdir}/analysis/007_annotation/{sample}.on_target.bam'
+    log_paths:
+    - '{config.outdir}/logs/007_annotation/{sample}_flagstat.log'
+    message: '"Generating flagstat report for sample {wildcards.sample}"'
+    name: flagstat_report
+    outputs:
+    - description: null
+      io_type: txt
+      name: flagstat
+      path_template: '{config.outdir}/analysis/007_annotation/{sample}.flagstat.txt'
+    params: []
+    rule: flagstat_report
+    script: null
+    threads: null
+  snk.flagstat_target:
+    benchmark: config["outdir"] + "/benchmarks/004_bam_qc/{sample}_flagstat_target.txt
+    command: sambamba view -t {threads} -F "not secondary_alignment" -f bam -l 0 {input.bam_target}
+      2> {log} | sambamba flagstat -t {threads} /dev/stdin > {output.flagstat_target}
+      2> {log}
+    conda_env: icc_gatk
+    description: Snakemake rule flagstat_target
+    id: snk.flagstat_target
+    inputs:
+    - description: null
+      io_type: unknown
+      name: bam_target
+      path_template: rules.filter_bam_target.output.bam_target
+    log_paths:
+    - '{config.outdir}/logs/004_bam_qc/{sample}_flagstat_target.log'
+    message: '"Flagstat for target BAM for sample {wildcards.sample}"'
+    name: flagstat_target
+    outputs:
+    - description: null
+      io_type: unknown
+      name: flagstat_target
+      path_template: '{config.outdir}/analysis/004_bam_qc/{sample}.target.flagstat'
+    params: []
+    rule: flagstat_target
+    script: null
+    threads: 4
+  snk.generate_summary:
+    benchmark: config["outdir"] + "/benchmarks/008_summary/{sample}/{sample}_{lane}_summary.txt
+    command: python generate_summary.py --input {input.annotated_vcf} --output {output.summary}
+      > {log} 2>&1
+    conda_env: envs/008_summary.yml
+    description: Snakemake rule generate_summary
+    id: snk.generate_summary
+    inputs:
+    - description: null
+      io_type: vcf
+      name: annotated_vcf
+      path_template: '{config.outdir}/analysis/007_annotation/{sample}/{sample}_{lane}/{sample}_{lane}.annotated.vcf'
+    log_paths:
+    - '{config.outdir}/logs/008_summary/{sample}/{sample}_{lane}_summary.log'
+    message: '"Generating summary report for sample {wildcards.sample}_{lane}"'
+    name: generate_summary
+    outputs:
+    - description: null
+      io_type: txt
+      name: summary
+      path_template: '{config.outdir}/analysis/008_summary/{sample}/{sample}_{lane}/{sample}_{lane}_summary.txt'
+    params: []
+    rule: generate_summary
+    script: null
+    threads: null
+  snk.genotype_gvcfs:
+    benchmark: config["outdir"] + "/benchmarks/005_variant_calling/{sample}_genotype_gvcfs.txt
+    command: gatk GenotypeGVCFs -R {params.ref} -V {input.gvcf} -O {output.vcf} -A
+      DepthPerAlleleBySample -A Coverage -A InbreedingCoeff --intervals {params.target}
+      --dbsnp {params.dbsnp} &> {log}
+    conda_env: icc_gatk
+    description: Snakemake rule genotype_gvcfs
+    id: snk.genotype_gvcfs
+    inputs:
+    - description: null
+      io_type: unknown
+      name: gvcf
+      path_template: rules.variant_annotation.output.annotated_vcf
+    log_paths:
+    - '{config.outdir}/logs/005_variant_calling/{sample}_genotype_gvcfs.log'
+    message: '"Genotyping GVCFs for sample {wildcards.sample}"'
+    name: genotype_gvcfs
+    outputs:
+    - description: null
+      io_type: vcf
+      name: vcf
+      path_template: '{config.outdir}/analysis/005_variant_calling/{sample}.genotyped.vcf'
+    params:
+    - default: null
+      description: '{config.reference_genome}'
+      enum: null
+      name: ref
+      param_type: str
+      required: false
+    - default: null
+      description: '{config.icc_panel}'
+      enum: null
+      name: target
+      param_type: str
+      required: false
+    - default: null
+      description: '{config.dbsnp}'
+      enum: null
+      name: dbsnp
+      param_type: str
+      required: false
+    rule: genotype_gvcfs
+    script: null
+    threads: 1
+  snk.haplotypecaller:
+    benchmark: config["outdir"] + "/benchmarks/005_variant_calling/{sample}_haplotypecaller.txt
+    command: gatk HaplotypeCallerSpark -R {params.ref} -I {input.bam} -O {output.gvcf}
+      -ERC GVCF -OVI true --intervals {params.target} --spark-master local[{threads}]
+      &> {log}
+    conda_env: icc_gatk
+    description: Snakemake rule haplotypecaller
+    id: snk.haplotypecaller
+    inputs:
+    - description: null
+      io_type: unknown
+      name: bam
+      path_template: rules.filter_bam_target.output.bam_target
+    log_paths:
+    - '{config.outdir}/logs/005_variant_calling/{sample}_haplotypecaller.log'
+    message: '"Calling variants with HaplotypeCaller for sample {wildcards.sample}"'
+    name: haplotypecaller
+    outputs:
+    - description: null
+      io_type: gvcf
+      name: gvcf
+      path_template: '{config.outdir}/analysis/005_variant_calling/{sample}.haplotypecaller.g.vcf'
+    params:
+    - default: null
+      description: '{config.reference_genome}'
+      enum: null
+      name: ref
+      param_type: str
+      required: false
+    - default: null
+      description: '{config.icc_panel}'
+      enum: null
+      name: target
+      param_type: str
+      required: false
+    rule: haplotypecaller
+    script: null
+    threads: 11
+  snk.index_gvcf:
+    benchmark: config["outdir"] + "/benchmarks/005_variant_calling/{sample}_index_gvcf.txt
+    command: gatk IndexFeatureFile -I {input.gvcf} &> {log}
+    conda_env: icc_gatk
+    description: Snakemake rule index_gvcf
+    id: snk.index_gvcf
+    inputs:
+    - description: null
+      io_type: unknown
+      name: gvcf
+      path_template: rules.haplotypecaller.output.gvcf
+    log_paths:
+    - '{config.outdir}/logs/005_variant_calling/{sample}_index_gvcf.log'
+    message: '"Indexing GVCF for sample {wildcards.sample}"'
+    name: index_gvcf
+    outputs:
+    - description: null
+      io_type: idx
+      name: gvcf_index
+      path_template: '{config.outdir}/analysis/005_variant_calling/{sample}.haplotypecaller.g.vcf.idx'
+    params: []
+    rule: index_gvcf
+    script: null
+    threads: 1
+  snk.index_markdup_bam:
+    benchmark: config["outdir"] + "/benchmarks/003_alignment/04_markduped/{sample}_index_markdup.txt
+    command: samtools index {input.markdup_bam} > {log} 2>&1
+    conda_env: icc_gatk
+    description: Snakemake rule index_markdup_bam
+    id: snk.index_markdup_bam
+    inputs:
+    - description: null
+      io_type: unknown
+      name: markdup_bam
+      path_template: rules.mark_duplicates.output.markdup_bam
+    log_paths:
+    - '{config.outdir}/logs/003_alignment/04_markduped/{sample}_index_markdup.log'
+    message: '"Indexing markdup BAM for sample {wildcards.sample}"'
+    name: index_markdup_bam
+    outputs:
+    - description: null
+      io_type: bam_bai
+      name: indexed_markdup_bam
+      path_template: '{config.outdir}/analysis/003_alignment/04_markduped/{sample}.markdup.bam.bai'
+    params: []
+    rule: index_markdup_bam
+    script: null
+    threads: null
+  snk.mark_duplicates:
+    benchmark: config["outdir"] + "/benchmarks/003_alignment/04_markduped/{sample}_markdup.txt
+    command: gatk MarkDuplicatesSpark -I {input.rg_bam} -O {output.markdup_bam} -M
+      {output.metrics} --spark-master local[{threads}] --conf spark.ui.enabled=false
+      > {log} 2>&1
+    conda_env: icc_gatk
+    description: Snakemake rule mark_duplicates
+    id: snk.mark_duplicates
+    inputs:
+    - description: null
+      io_type: unknown
+      name: rg_bam
+      path_template: rules.add_read_groups.output.rg_bam
+    log_paths:
+    - '{config.outdir}/logs/003_alignment/04_markduped/{sample}_markdup.log'
+    message: '"Marking duplicates in BAM for sample {wildcards.sample}"'
+    name: mark_duplicates
+    outputs:
+    - description: null
+      io_type: bam
+      name: markdup_bam
+      path_template: '{config.outdir}/analysis/003_alignment/04_markduped/{sample}.markdup.bam'
+    - description: null
+      io_type: txt
+      name: metrics
+      path_template: '{config.outdir}/analysis/003_alignment/04_markduped/{sample}.markdup.metrics.txt'
+    params: []
+    rule: mark_duplicates
+    script: null
+    threads: 4
+  snk.mean_coverage_per_exon:
+    benchmark: config["outdir"] + "/benchmarks/004_bam_qc/{sample}_mean_coverage_per_exon.txt
+    command: bedtools coverage -a {params.cds_file} -b {input.bam_prot_coding} -mean
+      > {output.mean_coverage}
+    conda_env: icc_gatk
+    description: Snakemake rule mean_coverage_per_exon
+    id: snk.mean_coverage_per_exon
+    inputs:
+    - description: null
+      io_type: unknown
+      name: bam_prot_coding
+      path_template: rules.filter_bam_prot_coding.output.bam_prot_coding
+    log_paths:
+    - '{config.outdir}/logs/004_bam_qc/{sample}_mean_coverage_per_exon.log'
+    message: '"Calculating mean coverage per exon for protein coding target for sample
+      {wildcards.sample}"'
+    name: mean_coverage_per_exon
+    outputs:
+    - description: null
+      io_type: bed
+      name: mean_coverage
+      path_template: '{config.outdir}/analysis/004_bam_qc/{sample}.prot_coding.mean_coverage.bed'
+    params:
+    - default: null
+      description: '{config.cds_panel}'
+      enum: null
+      name: cds_file
+      param_type: str
+      required: false
+    rule: mean_coverage_per_exon
+    script: null
+    threads: null
+  snk.mean_coverage_per_exon_target:
+    benchmark: config["outdir"] + "/benchmarks/004_bam_qc/{sample}_mean_coverage_per_exon_target.txt
+    command: bedtools coverage -a {params.cds_file} -b {input.bam_target} -mean >
+      {output.mean_coverage_target}
+    conda_env: icc_gatk
+    description: Snakemake rule mean_coverage_per_exon_target
+    id: snk.mean_coverage_per_exon_target
+    inputs:
+    - description: null
+      io_type: unknown
+      name: bam_target
+      path_template: rules.filter_bam_target.output.bam_target
+    log_paths:
+    - '{config.outdir}/logs/004_bam_qc/{sample}_mean_coverage_per_exon_target.log'
+    message: '"Calculating mean coverage per exon for target BAM for sample {wildcards.sample}"'
+    name: mean_coverage_per_exon_target
+    outputs:
+    - description: null
+      io_type: bed
+      name: mean_coverage_target
+      path_template: '{config.outdir}/analysis/004_bam_qc/{sample}.target.mean_coverage.bed'
+    params:
+    - default: null
+      description: '{config.cds_panel}'
+      enum: null
+      name: cds_file
+      param_type: str
+      required: false
+    rule: mean_coverage_per_exon_target
+    script: null
+    threads: null
+  snk.merge_bams:
+    benchmark: config["outdir"] + "/benchmarks/003_alignment/02_merged/{sample}_merge.txt
+    command: sambamba merge -t {threads} {output.merged_bam} {input.bams} > {log}
+      2>&1
+    conda_env: icc_04_alignment
+    description: Snakemake rule merge_bams
+    id: snk.merge_bams
+    inputs:
+    - description: null
+      io_type: unknown
+      name: bams
+      path_template: expand(rules.bwa_mem.output.bam, sample={sample}, lane=(L001,
+        L002, L003, L004))
+    log_paths:
+    - '{config.outdir}/logs/003_alignment/02_merged/{sample}_merge.log'
+    message: '"Merging BAM files for sample {wildcards.sample}"'
+    name: merge_bams
+    outputs:
+    - description: null
+      io_type: bam
+      name: merged_bam
+      path_template: '{config.outdir}/analysis/003_alignment/02_merged/{sample}.merged.bam'
+    params: []
+    rule: merge_bams
+    script: null
+    threads: 4
+  snk.posttrim_fastqc:
+    benchmark: config["outdir"] + "/benchmarks/001_QC/posttrim/{sample}_{lane}_{R}_posttrim_fastqc.txt
+    command: '# Generate parent directory path parent_path=$(dirname {params.path})
+      # Create the output directory mkdir -p "$parent_path" fastqc {input.fq} -t {threads}
+      -o "$parent_path" &> {log} # Move the FastQC outputs to the desired location
+      mv {params.path}_{wildcards.lane}_{wildcards.R}_fastqc.zip {output.zip} mv {params.path}_{wildcards.lane}_{wildcards.R}_fastqc.html
+      {output.html}'
+    conda_env: fastqc_env
+    description: Snakemake rule posttrim_fastqc
+    id: snk.posttrim_fastqc
+    inputs:
+    - description: null
+      io_type: fastq_gz
+      name: fq
+      path_template: '{config.outdir}/analysis/002_trimming/{sample}_{lane}_{R}.fastq.gz'
+    log_paths:
+    - '{config.outdir}/logs/001_QC/posttrim/{sample}_{lane}_{R}_posttrim_fastqc.log'
+    message: '"Running post-trimming FastQC for sample {wildcards.sample}_{lane}"'
+    name: posttrim_fastqc
+    outputs:
+    - description: null
+      io_type: zip
+      name: zip
+      path_template: '{config.outdir}/analysis/001_QC/posttrim/{sample}_{lane}_{R}_posttrim_fastqc.zip'
+    - description: null
+      io_type: html
+      name: html
+      path_template: '{config.outdir}/analysis/001_QC/posttrim/{sample}_{lane}_{R}_posttrim_fastqc.html'
+    params:
+    - default: null
+      description: '{config.outdir}/analysis/001_QC/posttrim/{sample}'
+      enum: null
+      name: path
+      param_type: str
+      required: false
+    rule: posttrim_fastqc
+    script: null
+    threads: 1
+  snk.qc_report:
+    benchmark: null
+    command: null
+    conda_env: icc_gatk
+    description: Snakemake rule qc_report
+    id: snk.qc_report
+    inputs:
+    - description: null
+      io_type: unknown
+      name: flagstat_original
+      path_template: rules.flagstat_original.output.flagstat_original
+    - description: null
+      io_type: unknown
+      name: flagstat_target
+      path_template: rules.flagstat_target.output.flagstat_target
+    - description: null
+      io_type: unknown
+      name: coverage_stats
+      path_template: rules.coverage_stats.output.coverage_stats
+    - description: null
+      io_type: unknown
+      name: coverage_stats_target
+      path_template: rules.coverage_stats_target.output.coverage_stats_target
+    - description: null
+      io_type: unknown
+      name: coverage_hist
+      path_template: rules.coverage_hist.output.coverage_hist
+    - description: null
+      io_type: unknown
+      name: coverage_hist_target
+      path_template: rules.coverage_hist_target.output.coverage_hist_target
+    - description: null
+      io_type: unknown
+      name: depth_of_coverage
+      path_template: rules.depth_of_coverage.output.depth_of_coverage
+    - description: null
+      io_type: unknown
+      name: depth_of_coverage_target
+      path_template: rules.depth_of_coverage_target.output.depth_of_coverage_target
+    - description: null
+      io_type: unknown
+      name: mean_coverage
+      path_template: rules.mean_coverage_per_exon.output.mean_coverage
+    - description: null
+      io_type: unknown
+      name: mean_coverage_target
+      path_template: rules.mean_coverage_per_exon_target.output.mean_coverage_target
+    - description: null
+      io_type: unknown
+      name: alignment_summary_metrics
+      path_template: rules.collect_alignment_summary_metrics.output.alignment_summary_metrics
+    - description: null
+      io_type: unknown
+      name: alignment_summary_metrics_target
+      path_template: rules.collect_alignment_summary_metrics_target.output.alignment_summary_metrics_target
+    log_paths: []
+    message: null
+    name: qc_report
+    outputs:
+    - description: null
+      io_type: tsv
+      name: qc_metrics
+      path_template: '{config.outdir}/analysis/004_bam_qc/{sample}.qc_metrics.tsv'
+    params: []
+    rule: qc_report
+    script: workflow/scripts/qc_report.py
+    threads: null
+  snk.raw_fastqc:
+    benchmark: config["outdir"] + "/benchmarks/001_QC/pretrim/{sample_filename}_{lane}_{R}.txt
+    command: '# Generate parent directory path parent_path=$(dirname {params.path})
+      # Create the output directory mkdir -p "$parent_path" fastqc {input} -t {threads}
+      -o "$parent_path" &> {log} # Move the FastQC outputs to the desired location
+      mv {params.path}_{wildcards.lane}_{wildcards.R}_001_fastqc.html {output.html}
+      mv {params.path}_{wildcards.lane}_{wildcards.R}_001_fastqc.zip {output.zip}'
+    conda_env: fastqc_env
+    description: Snakemake rule raw_fastqc
+    id: snk.raw_fastqc
+    inputs:
+    - description: null
+      io_type: fastq_gz
+      name: _1
+      path_template: '{config.inputdir}/{sample_filename}_{lane}_{R}_001.fastq.gz'
+    log_paths:
+    - '{config.outdir}/logs/001_QC/pretrim/{sample_filename}_{lane}_{R}.log'
+    message: '"Running FastQC on sample {lane}_{wildcards.R}"'
+    name: raw_fastqc
+    outputs:
+    - description: null
+      io_type: html
+      name: html
+      path_template: '{config.outdir}/analysis/001_QC/pretrim/{sample_filename}_{lane}_{R}_pretrim_fastqc.html'
+    - description: null
+      io_type: zip
+      name: zip
+      path_template: '{config.outdir}/analysis/001_QC/pretrim/{sample_filename}_{lane}_{R}_pretrim_fastqc.zip'
+    params:
+    - default: null
+      description: '{config.outdir}/analysis/001_QC/pretrim/{sample_filename}'
+      enum: null
+      name: path
+      param_type: str
+      required: false
+    rule: raw_fastqc
+    script: null
+    threads: 1
+  snk.split_vcfs:
+    benchmark: config["outdir"] + "/benchmarks/005_variant_calling/{sample}_split_vcfs.txt
+    command: gatk SplitVcfs I={input.vcf} SNP_OUTPUT={output.snp_vcf} INDEL_OUTPUT={output.indel_vcf}
+      STRICT=false &> {log}
+    conda_env: icc_gatk
+    description: Snakemake rule split_vcfs
+    id: snk.split_vcfs
+    inputs:
+    - description: null
+      io_type: unknown
+      name: vcf
+      path_template: rules.apply_vqsr_indel.output.indel_recal_vcf
+    log_paths:
+    - '{config.outdir}/logs/005_variant_calling/{sample}_split_vcfs.log'
+    message: '"Splitting VCFs into SNPs and Indels for sample {wildcards.sample}"'
+    name: split_vcfs
+    outputs:
+    - description: null
+      io_type: vcf
+      name: snp_vcf
+      path_template: '{config.outdir}/analysis/005_variant_calling/{sample}.genotyped.snp.vcf'
+    - description: null
+      io_type: vcf
+      name: indel_vcf
+      path_template: '{config.outdir}/analysis/005_variant_calling/{sample}.genotyped.indel.vcf'
+    params: []
+    rule: split_vcfs
+    script: null
+    threads: 1
+  snk.trimming:
+    benchmark: config["outdir"] + "/benchmarks/002_trimming/{sample}/{sample}_{lane}.txt
+    command: '# unzip the input files gunzip -c {input.fq1} > {input.fq1}.fastq gunzip
+      -c {input.fq2} > {input.fq2}.fastq prinseq-lite.pl -fastq {input.fq1}.fastq
+      -fastq2 {input.fq2}.fastq -out_good {params.path} -out_bad null -trim_qual_right
+      20 -trim_qual_left 20 -trim_qual_window 5 -min_len 35 &> {log} # rename output
+      files to suit the rest of the pipeline mv {params.path}_1.fastq {output.fq1}
+      mv {params.path}_1_singletons.fastq {output.fq1s} mv {params.path}_2.fastq {output.fq2}
+      mv {params.path}_2_singletons.fastq {output.fq2s}'
+    conda_env: icc_02_trimming
+    description: Snakemake rule trimming
+    id: snk.trimming
+    inputs:
+    - description: null
+      io_type: fastq_gz
+      name: fq1
+      path_template: '{config.inputdir}/{sample}_{lane}_R1_001.fastq.gz'
+    - description: null
+      io_type: fastq_gz
+      name: fq2
+      path_template: '{config.inputdir}/{sample}_{lane}_R2_001.fastq.gz'
+    log_paths:
+    - '{config.outdir}/logs/002_trimming/{sample}/{sample}_{lane}.log'
+    message: '"Trimming and removing adapters from sample {wildcards.sample}_{lane}"'
+    name: trimming
+    outputs:
+    - description: null
+      io_type: fastq
+      name: fq1
+      path_template: '{config.outdir}/analysis/002_trimming/{sample}_{lane}_R1.fastq'
+    - description: null
+      io_type: fastq
+      name: fq1s
+      path_template: '{config.outdir}/analysis/002_trimming/{sample}_{lane}_R1_singletons.fastq'
+    - description: null
+      io_type: fastq
+      name: fq2
+      path_template: '{config.outdir}/analysis/002_trimming/{sample}_{lane}_R2.fastq'
+    - description: null
+      io_type: fastq
+      name: fq2s
+      path_template: '{config.outdir}/analysis/002_trimming/{sample}_{lane}_R2_singletons.fastq'
+    params:
+    - default: null
+      description: '{config.outdir}/analysis/002_trimming/{sample}_{lane}'
+      enum: null
+      name: path
+      param_type: str
+      required: false
+    rule: trimming
+    script: null
+    threads: null
+  snk.trimming_fp:
+    benchmark: config["outdir"] + "/benchmarks/002_trimming/{sample}/{sample}_{lane}.txt
+    command: fastp -i {input.fq1} -I {input.fq2} -j {output.json} -o {output.fq1}
+      -O {output.fq2} -h {output.report} -w {threads} --length_required {params.min_length}
+      --cut_window_size {params.window_size} &> {log}
+    conda_env: icc_02_trimming
+    description: Snakemake rule trimming_fp
+    id: snk.trimming_fp
+    inputs:
+    - description: null
+      io_type: fastq_gz
+      name: fq1
+      path_template: '{config.inputdir}/{sample}_{lane}_R1_001.fastq.gz'
+    - description: null
+      io_type: fastq_gz
+      name: fq2
+      path_template: '{config.inputdir}/{sample}_{lane}_R2_001.fastq.gz'
+    log_paths:
+    - '{config.outdir}/logs/002_trimming/{sample}/{sample}_{lane}.log'
+    message: '"Trimming and removing adapters from sample {wildcards.sample}_{lane}"'
+    name: trimming_fp
+    outputs:
+    - description: null
+      io_type: fastq_gz
+      name: fq1
+      path_template: '{config.outdir}/analysis/002_trimming/{sample}_{lane}_R1.fastq.gz'
+    - description: null
+      io_type: fastq_gz
+      name: fq2
+      path_template: '{config.outdir}/analysis/002_trimming/{sample}_{lane}_R2.fastq.gz'
+    - description: null
+      io_type: html
+      name: report
+      path_template: '{config.outdir}/analysis/002_trimming/{sample}_{lane}_report.html'
+    - description: null
+      io_type: json
+      name: json
+      path_template: '{config.outdir}/analysis/002_trimming/{sample}_{lane}_report.json'
+    params:
+    - default: null
+      description: '{config.outdir}/analysis/002_trimming/{sample}_{lane}'
+      enum: null
+      name: path
+      param_type: str
+      required: false
+    - default: null
+      description: '{config.fastp.min_read_length}'
+      enum: null
+      name: min_length
+      param_type: str
+      required: false
+    - default: null
+      description: '{config.fastp.window_size}'
+      enum: null
+      name: window_size
+      param_type: str
+      required: false
+    rule: trimming_fp
+    script: null
+    threads: 1
+  snk.variant_annotation:
+    benchmark: config["outdir"] + "/benchmarks/005_variant_calling/{sample}_variant_annotation.txt
+    command: gatk VariantAnnotator -R {params.ref} -V {input.vcf} -O {output.annotated_vcf}
+      -A Coverage -A DepthPerAlleleBySample -A QualByDepth -A InbreedingCoeff -G StandardAnnotation
+      --dbsnp {params.dbsnp} --intervals {params.target} &> {log}
+    conda_env: icc_gatk
+    description: Snakemake rule variant_annotation
+    id: snk.variant_annotation
+    inputs:
+    - description: null
+      io_type: unknown
+      name: vcf
+      path_template: rules.haplotypecaller.output.gvcf
+    - description: null
+      io_type: unknown
+      name: idx
+      path_template: rules.index_gvcf.output.gvcf_index
+    log_paths:
+    - '{config.outdir}/logs/005_variant_calling/{sample}_variant_annotation.log'
+    message: '"Annotating variants for sample {wildcards.sample}"'
+    name: variant_annotation
+    outputs:
+    - description: null
+      io_type: vcf
+      name: annotated_vcf
+      path_template: '{config.outdir}/analysis/005_variant_calling/{sample}.annotated.vcf'
+    params:
+    - default: null
+      description: '{config.reference_genome}'
+      enum: null
+      name: ref
+      param_type: str
+      required: false
+    - default: null
+      description: '{config.icc_panel}'
+      enum: null
+      name: target
+      param_type: str
+      required: false
+    - default: null
+      description: '{config.dbsnp}'
+      enum: null
+      name: dbsnp
+      param_type: str
+      required: false
+    rule: variant_annotation
+    script: null
+    threads: 1
+  snk.vqsr_indel_recalibration:
+    benchmark: config["outdir"] + "/benchmarks/005_variant_calling/{sample}_vqsr_indel_recalibration.txt
+    command: gatk VariantRecalibrator -R {params.ref} -V {input.vcf} --resource:mills,known=true,training=true,truth=true,prior=12.0
+      {params.mills} --resource:dbsnp,known=true,training=false,truth=false,prior=2.0
+      {params.dbsnp} -an QD -an ReadPosRankSum -an FS -an SOR -an DP -mode INDEL -O
+      {output.recal_indel} --tranches-file {output.tranches_indel} &> {log}
+    conda_env: icc_gatk
+    description: Snakemake rule vqsr_indel_recalibration
+    id: snk.vqsr_indel_recalibration
+    inputs:
+    - description: null
+      io_type: unknown
+      name: vcf
+      path_template: rules.apply_vqsr_snp.output.snp_recal_vcf
+    log_paths:
+    - '{config.outdir}/logs/005_variant_calling/{sample}_vqsr_indel_recalibration.log'
+    message: '"Recalibrating Indels for sample {wildcards.sample}"'
+    name: vqsr_indel_recalibration
+    outputs:
+    - description: null
+      io_type: unknown
+      name: recal_indel
+      path_template: '{config.outdir}/analysis/005_variant_calling/{sample}.recalibrate_INDEL.recal'
+    - description: null
+      io_type: unknown
+      name: tranches_indel
+      path_template: '{config.outdir}/analysis/005_variant_calling/{sample}.recalibrate_INDEL.tranches'
+    params:
+    - default: null
+      description: '{config.reference_genome}'
+      enum: null
+      name: ref
+      param_type: str
+      required: false
+    - default: null
+      description: '{config.mills}'
+      enum: null
+      name: mills
+      param_type: str
+      required: false
+    - default: null
+      description: '{config.dbsnp}'
+      enum: null
+      name: dbsnp
+      param_type: str
+      required: false
+    rule: vqsr_indel_recalibration
+    script: null
+    threads: 11
+  snk.vqsr_snp_recalibration:
+    benchmark: config["outdir"] + "/benchmarks/005_variant_calling/{sample}_vqsr_snp_recalibration.txt
+    command: gatk VariantRecalibrator -R {params.ref} -V {input.vcf} --resource:hapmap,known=false,training=true,truth=true,prior=15.0
+      {params.hapmap} --resource:omni,known=false,training=true,truth=true,prior=12.0
+      {params.omni} --resource:1000G,known=false,training=true,truth=false,prior=10.0
+      {params.tenk} --resource:dbsnp,known=true,training=false,truth=false,prior=2.0
+      {params.dbsnp} -an QD -an MQRankSum -an ReadPosRankSum -an FS -an SOR -an DP
+      -mode SNP -O {output.recal_snp} --tranches-file {output.tranches_snp} &> {log}
+    conda_env: icc_gatk
+    description: Snakemake rule vqsr_snp_recalibration
+    id: snk.vqsr_snp_recalibration
+    inputs:
+    - description: null
+      io_type: vcf
+      name: vcf
+      path_template: rules.genotype_gvcfs.output.vcf
+    log_paths:
+    - '{config.outdir}/logs/005_variant_calling/{sample}_vqsr_snp_recalibration.log'
+    message: '"Recalibrating SNPs for sample {wildcards.sample}"'
+    name: vqsr_snp_recalibration
+    outputs:
+    - description: null
+      io_type: unknown
+      name: recal_snp
+      path_template: '{config.outdir}/analysis/005_variant_calling/{sample}.recalibrate_SNP.recal'
+    - description: null
+      io_type: unknown
+      name: tranches_snp
+      path_template: '{config.outdir}/analysis/005_variant_calling/{sample}.recalibrate_SNP.tranches'
+    params:
+    - default: null
+      description: '{config.reference_genome}'
+      enum: null
+      name: ref
+      param_type: str
+      required: false
+    - default: null
+      description: '{config.hapmap}'
+      enum: null
+      name: hapmap
+      param_type: str
+      required: false
+    - default: null
+      description: '{config.omni}'
+      enum: null
+      name: omni
+      param_type: str
+      required: false
+    - default: null
+      description: '{config.tenk}'
+      enum: null
+      name: tenk
+      param_type: str
+      required: false
+    - default: null
+      description: '{config.dbsnp}'
+      enum: null
+      name: dbsnp
+      param_type: str
+      required: false
+    rule: vqsr_snp_recalibration
+    script: null
+    threads: 11

@@ -1,0 +1,2 @@
+[console_scripts]
+pipemind = pipemind.cli.app:app
