@@ -65,12 +65,14 @@ def intake(
 @app.command()
 def run(
     target: str = typer.Argument(..., help="Snakemake target to build (path)"),
-    snakefile: str = typer.Option("WES-Pipeline-Snakemake/workflow/Snakefile", help="Snakefile path"),
+    workflow_dir: str = typer.Argument(..., help="Path to Snakemake workflow directory"),
+    snakefile: str = typer.Option(None, help="Snakefile path (defaults to <workflow_dir>/Snakefile)"),
     cores: int = typer.Option(4, help="Cores for snakemake"),
 ):
     """Run Snakemake for the given target."""
     import subprocess
-    cmd = ["snakemake", "-s", snakefile, target, "-c", str(cores), "--rerun-incomplete", "--printshellcmds"]
+    snakefile_path = snakefile if snakefile else os.path.join(workflow_dir, "Snakefile")
+    cmd = ["snakemake", "-s", snakefile_path, target, "-c", str(cores), "--rerun-incomplete", "--printshellcmds"]
     res = subprocess.run(cmd, capture_output=True, text=True)
     print(res.stdout)
     if res.returncode != 0:
