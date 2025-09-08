@@ -1,6 +1,6 @@
-# WES-Pipeline-PipeMind
+# PipeMind
 
-An LLM-driven, MCP-integrated, dynamically composable bioinformatics workflow system. This research prototype imports a Snakemake workflow (WES) and exposes each rule as an MCP tool, builds DAGs dynamically via I/O matching, and drives configuration through a conversational CLI.
+An LLM-driven, MCP-integrated, dynamically composable bioinformatics workflow manager. This research prototype imports Snakemake workflows and exposes each rule as an MCP tool, builds DAGs dynamically via I/O matching, and drives configuration through a conversational CLI.
 
 Highlights
 - Parser converts Snakemake rules -> strict typed tool registry (YAML)

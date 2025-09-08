@@ -38,10 +38,10 @@ test:
   commands:
     - pipemind --help
 
-  home: https://github.com/pipemind/pipemind
-  dev_url: https://github.com/pipemind/pipemind
-  doc_url: https://github.com/pipemind/pipemind#readme
-  summary: LLM-driven, MCP-integrated, dynamically composable bioinformatics workflow system
+  home: https://github.com/menyawino/PipeMind
+  dev_url: https://github.com/menyawino/PipeMind
+  doc_url: https://github.com/menyawino/PipeMind#readme
+  summary: LLM-driven, MCP-integrated, dynamically composable bioinformatics workflow manager
   description: |
     PipeMind is a research prototype for LLM-driven, MCP-integrated, dynamically composable bioinformatics workflows. It imports Snakemake workflows, exposes each rule as an MCP tool, builds DAGs dynamically via I/O matching, and drives configuration through a conversational CLI.
   license: Apache-2.0
