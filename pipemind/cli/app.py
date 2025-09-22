@@ -10,6 +10,7 @@ from pipemind.dag.builder import build_dag_for_goal
 from pipemind.cli.intake import required_fields_for_goal, interactive_collect
 from pipemind.tools.generate_wrappers import generate as gen_wrappers
 from pipemind.utils.llm import chat as llm_chat
+from pipemind.snakemake.generator import materialize_and_optionally_run
 
 
 app = typer.Typer(add_completion=False, help="PipeMind CLI")
@@ -110,6 +111,39 @@ def llm(
         print("[yellow]LLM returned an empty message. Check model/base URL/API key or permissions.[/yellow]")
     else:
         print(out)
+
+
+@app.command()
+def compose(
+    registry_yaml: str = typer.Option("pipemind/registry/registry.yaml", help="Registry YAML path"),
+    outputs: list[str] = typer.Option(..., '--output', '-o', help="One or more desired final output path templates (wildcards allowed)"),
+    fill: str | None = typer.Option(None, help="JSON mapping of wildcard -> value to concretise rule all"),
+    run: bool = typer.Option(False, help="Run snakemake after generating the dynamic Snakefile"),
+    dry_run: bool = typer.Option(False, help="If running, perform Snakemake dry-run (-n) only"),
+    workdir: str | None = typer.Option(None, help="Directory to write the dynamic Snakefile (default .pipemind_runs/<timestamp>)"),
+    cores: int = typer.Option(4, help="Cores for Snakemake execution"),
+):
+    """Generate (and optionally execute) a minimal dynamic Snakefile with a robust rule all.
+
+    Example:
+      pipemind compose -o results/{sample}.vcf.gz --fill '{"sample":"NA12878"}' --run
+    """
+    import json as _json
+    known = _json.loads(fill) if fill else {}
+    try:
+        result = materialize_and_optionally_run(
+            registry_yaml=registry_yaml,
+            goal_outputs=outputs,
+            known=known,
+            workdir=workdir,
+            run=run,
+            dry_run=dry_run,
+            cores=cores,
+        )
+    except Exception as e:  # pragma: no cover - CLI integration path
+        print(f"[red]Compose failed:[/red] {e}")
+        raise typer.Exit(code=1)
+    print(json.dumps(result, indent=2))
 
 
 if __name__ == "__main__":

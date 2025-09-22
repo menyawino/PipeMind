@@ -18,10 +18,14 @@ pipemind/registry/README.md
 pipemind/registry/parser.py
 pipemind/registry/registry.yaml
 pipemind/registry/schema.py
+pipemind/snakemake/__init__.py
+pipemind/snakemake/generator.py
 pipemind/tests/test_cli.py
 pipemind/tests/test_dag.py
+pipemind/tests/test_llm.py
 pipemind/tests/test_parser.py
 pipemind/tests/test_parser_extended.py
+pipemind/tests/test_snakemake_dynamic.py
 pipemind/tools/__init__.py
 pipemind/tools/generate_wrappers.py
 pipemind/tools/runner.py

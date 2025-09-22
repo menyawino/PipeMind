@@ -20,9 +20,9 @@ Requires-Dist: httpx>=0.27
 Requires-Dist: openai>=1.0.0
 Dynamic: license-file
 
-# WES-Pipeline-PipeMind
+# PipeMind
 
-An LLM-driven, MCP-integrated, dynamically composable bioinformatics workflow system. This research prototype imports a Snakemake workflow (WES) and exposes each rule as an MCP tool, builds DAGs dynamically via I/O matching, and drives configuration through a conversational CLI.
+An LLM-driven, MCP-integrated, dynamically composable bioinformatics workflow manager. This research prototype imports Snakemake workflows and exposes each rule as an MCP tool, builds DAGs dynamically via I/O matching, and drives configuration through a conversational CLI.
 
 Highlights
 - Parser converts Snakemake rules -> strict typed tool registry (YAML)
@@ -32,15 +32,15 @@ Highlights
 - Audit log with inputs, params, hashes, and outputs for reproducibility
 
 Quick start
-- Ensure Snakemake workflow exists at `WES-Pipeline-Snakemake/workflow`
+- Provide the path to your Snakemake workflow directory when using the tool
 - Install: pip install -e .
-- Parse: pipemind parse WES-Pipeline-Snakemake/workflow -o pipemind/registry/registry.yaml
+- Parse: pipemind parse <your-workflow-dir> -o pipemind/registry/registry.yaml
 - Serve schemas: pipemind serve --host 0.0.0.0 --port 8000
 - Plan goal: pipemind goal --target-output "vcf:/analysis/006_variant_filtering/{sample}.filtered.snp.vcf" --fill '{"sample":"S1","lane":"L001","R":"R1"}'
 - Run a target: pipemind run --target ../output_38/analysis/006_variant_filtering/S1.filtered.snp.vcf
 
 Environment variables
-- PIPEMIND_SNAKEFILE: Path to the Snakefile (default: WES-Pipeline-Snakemake/workflow/Snakefile)
+- PIPEMIND_SNAKEFILE: Path to the Snakefile (e.g., <your-workflow-dir>/Snakefile)
 - OPENAI_BASE_URL: Base URL for OpenAI-compatible servers (LM Studio, Ollama, etc.)
 - PIPEMIND_LLM_MODEL: Model ID (e.g., llama-3.2-3b-instruct, qwen2.5:3b, gpt-4o-mini)
 - OPENAI_API_KEY/OPENAI_API/OPENAI_KEY: API key for OpenAI-compatible servers
@@ -74,8 +74,8 @@ References/Citations
 License: Apache-2.0
 
 How to add a new tool
-- Add a new Snakemake rule or extend an existing .smk in `WES-Pipeline-Snakemake/workflow/rules`
-- Re-run: pipemind parse WES-Pipeline-Snakemake/workflow -o pipemind/registry/registry.yaml
+- Add a new Snakemake rule or extend an existing .smk in your workflow's rules directory
+- Re-run: pipemind parse <your-workflow-dir> -o pipemind/registry/registry.yaml
 - The MCP server will automatically pick up the new tool upon restart
 
 Security and reproducibility
