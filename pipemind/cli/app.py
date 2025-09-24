@@ -96,6 +96,7 @@ def llm(
     model: str | None = typer.Option(None, help="OpenAI model id (defaults from env)"),
     base_url: str | None = typer.Option(None, help="Override base URL (OPENAI_BASE_URL)"),
     api_key: str | None = typer.Option(None, help="Override API key (OPENAI_API_KEY/OPENAI_API/OPENAI_KEY)"),
+    provider: str | None = typer.Option(None, help="Force provider: 'ollama' or 'openai' (overrides env heuristics)"),
 ):
     """Send a quick chat to the configured OpenAI-compatible API."""
     msgs = [
@@ -103,7 +104,9 @@ def llm(
         {"role": "user", "content": prompt},
     ]
     try:
-        out = llm_chat(msgs, model=model, api_key=api_key, base_url=base_url)
+        out = llm_chat(msgs, model=model, api_key=api_key, base_url=base_url, provider=provider)
+        if isinstance(out, tuple):  # (text, meta) from return_meta future usage
+            out = out[0]
     except Exception as e:
         print(f"[red]LLM error:[/red] {e}")
         raise typer.Exit(code=1)
