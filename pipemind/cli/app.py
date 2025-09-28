@@ -136,20 +136,175 @@ def _extract_plan(text: str) -> tuple[list[str], dict[str, str]]:
     for m in fence_pat.finditer(text):
         blocks.append(m.group(1))
     candidates = blocks or [text]
+
+    def _first_brace_block(s: str) -> str | None:
+        start = s.find("{")
+        if start == -1:
+            return None
+        depth = 0
+        in_squote = False
+        in_dquote = False
+        escape = False
+        for i in range(start, len(s)):
+            ch = s[i]
+            if escape:
+                escape = False
+                continue
+            if ch == "\\":
+                escape = True
+                continue
+            if ch == "'" and not in_dquote:
+                in_squote = not in_squote
+                continue
+            if ch == '"' and not in_squote:
+                in_dquote = not in_dquote
+                continue
+            if in_squote or in_dquote:
+                continue
+            if ch == '{':
+                depth += 1
+            elif ch == '}':
+                depth -= 1
+                if depth == 0:
+                    return s[start:i+1]
+        return None
     for c in candidates:
         try:
             data = _json.loads(c)
         except Exception:
-            continue
-        if isinstance(data, dict) and "goal_outputs" in data:
-            goals = data.get("goal_outputs") or []
-            known = data.get("known") or {}
-            if isinstance(goals, list) and isinstance(known, dict):
-                # normalize to str keys/values for known
-                known_norm = {str(k): str(v) for k, v in known.items()}
-                goals_norm = [str(g) for g in goals]
+            # Fallback: some models return Python-literal dicts with single quotes
+            try:
+                import ast as _ast
+                data = _ast.literal_eval(c)
+            except Exception:
+                # Try extracting the first balanced-brace block from the text and parse that
+                blk = _first_brace_block(c)
+                if not blk:
+                    blk = _first_brace_block(text)
+                if not blk:
+                    continue
+                try:
+                    data = _json.loads(blk)
+                except Exception:
+                    try:
+                        import ast as _ast2
+                        data = _ast2.literal_eval(blk)
+                    except Exception:
+                        continue
+        if isinstance(data, dict):
+            # Accept multiple possible keys for goals
+            raw_goals = (
+                data.get("goal_outputs")
+                or data.get("goals")
+                or data.get("goal")
+            )
+            if isinstance(raw_goals, str):
+                raw_goals = [raw_goals]
+            goals_list: list[str] = []
+            if isinstance(raw_goals, list):
+                for item in raw_goals:
+                    if isinstance(item, str):
+                        goals_list.append(item)
+                    elif isinstance(item, dict):
+                        # Handle objects like {"path template": "..."} or {"path_template": "..."}
+                        # Normalize keys to be more permissive
+                        if item:
+                            # Build a normalized-key view (lowercased, collapsed whitespace, underscores -> spaces)
+                            norm_map: dict[str, str] = {}
+                            for k, v in item.items():
+                                nk = str(k).lower().replace("_", " ")
+                                nk = " ".join(nk.split())  # collapse whitespace
+                                norm_map[nk] = v
+                            candidates_keys = [
+                                "path template", "path", "template", "output", "value",
+                            ]
+                            chosen: str | None = None
+                            for k in candidates_keys:
+                                if k in norm_map and isinstance(norm_map[k], str):
+                                    chosen = norm_map[k]
+                                    break
+                            if chosen is None:
+                                for v in item.values():
+                                    if isinstance(v, str):
+                                        chosen = v
+                                        break
+                            if chosen:
+                                goals_list.append(chosen)
+            # Known wildcards
+            raw_known = data.get("known") or {}
+            if isinstance(goals_list, list) and isinstance(raw_known, dict) and goals_list:
+                # Dedup while preserving order
+                seen = set()
+                goals_norm = []
+                for g in goals_list:
+                    gs = str(g).strip()
+                    if gs and gs not in seen:
+                        seen.add(gs)
+                        goals_norm.append(gs)
+                # Basic sanity filter: drop obviously non-path placeholder words
+                bad = {"path", "output", "template", "value"}
+                goals_norm = [g for g in goals_norm if g.lower() not in bad]
+                # If everything got filtered out, try regex fallback on the original text
+                if not goals_norm:
+                    import re as __re
+                    # Match common path-like targets with config and/or wildcards
+                    patt = __re.compile(r"\{config\.[^}]+\}[^\s'\"]+|[A-Za-z0-9._/-]*\{sample\}[A-Za-z0-9._/-]*")
+                    hits = []
+                    for m in patt.finditer(text):
+                        val = m.group(0)
+                        if val and val not in hits:
+                            hits.append(val)
+                    if hits:
+                        goals_norm = hits
+                known_norm = {str(k): str(v) for k, v in raw_known.items()}
                 return goals_norm, known_norm
     return [], {}
+
+
+def _filter_valid_goals(registry_yaml: str, goals: list[str]) -> tuple[list[str], list[str]]:
+    """Keep only goals that some tool produces; return (kept, dropped)."""
+    try:
+        from pipemind.registry.schema import Registry
+        import yaml as _yaml
+        with open(registry_yaml, 'r', encoding='utf-8') as _f:
+            reg = Registry.model_validate(_yaml.safe_load(_f))
+        from pipemind.dag.builder import _match_output as _m_match  # type: ignore
+    except Exception:
+        return goals, []  # if anything goes wrong, don't block
+    kept: list[str] = []
+    dropped: list[str] = []
+    tools = list(reg.tools.values())
+    for g in goals:
+        if any(_m_match(t, g) for t in tools):
+            kept.append(g)
+        else:
+            dropped.append(g)
+    return kept, dropped
+
+
+def _normalize_goal_templates(goals: list[str], known: dict[str, str]) -> list[str]:
+    """Fix common model output issues:
+    - Convert 'config.name/...' -> '{config.name}/...'
+    - Replace known values back to wildcard placeholders: e.g., '.../S2...' -> '.../{sample}...'
+    """
+    out: list[str] = []
+    for g in goals:
+        s = g
+        # restore {config.var}
+        s = _re.sub(r"(?<!\{)(config\.[A-Za-z_][A-Za-z0-9_]*)/", r"{\1}/", s)
+        # replace known wildcard values with their placeholders
+        for k, v in (known or {}).items():
+            if isinstance(v, str) and v:
+                s = s.replace(v, "{" + k + "}")
+        out.append(s)
+    # de-dup while preserving order
+    seen = set()
+    norm = []
+    for s in out:
+        if s not in seen:
+            seen.add(s)
+            norm.append(s)
+    return norm
 
 
 @app.command()
@@ -192,6 +347,26 @@ def agent(
             continue
         history.append({"role": "assistant", "content": reply})
         g, k = _extract_plan(reply)
+        # If model omitted known, try to parse from user's latest message
+        if not k:
+            try:
+                k = _json.loads(user_msg).get("known", {}) if user_msg.strip().startswith("{") else {}
+            except Exception:
+                # simple regex for sample wildcards
+                m = _re.search(r"\{\"?sample\"?\s*:\s*\"?([A-Za-z0-9_.-]+)\"?\}", user_msg)
+                if m:
+                    k = {"sample": m.group(1)}
+        # Filter out goals that registry cannot produce
+        if g:
+            # Normalize model-provided paths (fix missing braces and reintroduce wildcards)
+            g = _normalize_goal_templates(g, k)
+            g_valid, g_dropped = _filter_valid_goals(registry_yaml, g)
+            if g_dropped:
+                typer.secho(f"Dropping {len(g_dropped)} unsupported goal(s): {g_dropped}", fg="yellow")
+                if not g_valid:
+                    typer.secho("Tip: ensure goal outputs use templates (with wildcards and {config.*}). "
+                                "You can paste a JSON block with goal_outputs and known.", fg="yellow")
+            g = g_valid
         if g:
             goals, known = g, k
             typer.secho(f"Extracted plan: goals={goals} known={known}", fg="green")

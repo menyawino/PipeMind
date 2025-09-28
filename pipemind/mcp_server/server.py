@@ -9,6 +9,7 @@ from pydantic import BaseModel
 
 from pipemind.registry.schema import Registry, ToolSpec
 from pipemind.utils.audit import write_invocation_log
+from pipemind.snakemake.generator import materialize_and_optionally_run
 
 
 def load_registry(registry_path: str) -> Registry:
@@ -121,6 +122,55 @@ def create_app(registry_path: str) -> tuple[FastAPI, FastMCP]:
                 fn=make_tool_callable(tool),
             )
         )
+
+    # Add a high-level composition tool that uses the dynamic generator
+    def _compose_fn(**kwargs):
+        outputs = kwargs.get("outputs") or kwargs.get("goals") or []
+        if isinstance(outputs, str):
+            outputs = [outputs]
+        known = kwargs.get("known") or {}
+        run = bool(kwargs.get("run", False))
+        dry_run = bool(kwargs.get("dry_run", True))
+        workdir = kwargs.get("workdir")
+        cores = int(kwargs.get("cores", 4))
+        res = materialize_and_optionally_run(
+            registry_yaml=registry_path,
+            goal_outputs=outputs,
+            known=known,
+            workdir=workdir,
+            run=run,
+            dry_run=dry_run,
+            cores=cores,
+        )
+        write_invocation_log(os.path.join(".pipemind", "audit"), {
+            "tool": "pipemind.compose",
+            "kwargs": kwargs,
+            "result": {k: v for k, v in res.items() if k in ("snakefile", "workdir", "returncode")},
+        })
+        return res
+
+    mcp.add_tool(
+        CallableTool(
+            name="pipemind.compose",
+            description=(
+                "Generate a minimal Snakefile for the requested goal outputs and optionally run Snakemake. "
+                "Accepts {outputs: string[]|string, known: object, run?: boolean, dry_run?: boolean, workdir?: string, cores?: integer}."
+            ),
+            parameters={
+                "type": "object",
+                "properties": {
+                    "outputs": {"type": ["array", "string"], "description": "Goal outputs (templates allowed)"},
+                    "known": {"type": "object", "description": "Wildcard/param substitutions"},
+                    "run": {"type": "boolean"},
+                    "dry_run": {"type": "boolean"},
+                    "workdir": {"type": "string"},
+                    "cores": {"type": "integer"},
+                },
+                "required": ["outputs"],
+            },
+            fn=_compose_fn,
+        )
+    )
 
     api = FastAPI(title="PipeMind MCP Server")
 
