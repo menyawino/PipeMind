@@ -37,6 +37,7 @@ def _ollama_request(
     model: str,
     base_url: str,
     temperature: float,
+    json_mode: bool = False,
 ) -> Tuple[str, Dict[str, str]]:
     """Attempt Ollama /api/chat first; on 404/405 or unsupported shape, fallback to /api/generate.
 
@@ -49,6 +50,9 @@ def _ollama_request(
         "stream": False,
         "options": {"temperature": temperature},
     }
+    if json_mode:
+        # Hint Ollama to return valid JSON
+        payload["format"] = "json"
     fallback_used = False
     try:
         resp = httpx.post(chat_endpoint, json=payload, timeout=60)
@@ -89,6 +93,8 @@ def _ollama_request(
         "stream": False,
         "options": {"temperature": temperature},
     }
+    if json_mode:
+        gen_payload["format"] = "json"
     try:
         gresp = httpx.post(generate_endpoint, json=gen_payload, timeout=60)
     except Exception as e:  # pragma: no cover
@@ -116,6 +122,7 @@ def chat(
     temperature: float = 0.2,
     return_meta: bool = False,
     provider: Optional[str] = None,
+    json_mode: bool = False,
 ) -> str | Tuple[str, Dict[str, str]]:
     """Send a chat to an LLM provider (OpenAI-compatible or Ollama) and return assistant text.
 
@@ -156,7 +163,13 @@ def chat(
 
     if provider == "ollama":
         base_url = base_url or os.getenv("OLLAMA_HOST") or os.getenv("OPENAI_BASE_URL") or "http://localhost:11434"
-        text, meta = _ollama_request(messages=messages, model=model, base_url=base_url, temperature=temperature)  # type: ignore[arg-type]
+        text, meta = _ollama_request(
+            messages=messages,
+            model=model,
+            base_url=base_url,
+            temperature=temperature,
+            json_mode=json_mode,
+        )  # type: ignore[arg-type]
         return (text, meta) if return_meta else text
 
     # OpenAI / compatible path
@@ -189,7 +202,15 @@ def chat(
             "Missing API key: set OPENAI_API_KEY or provide a key file (PIPEMIND_OPENAI_KEY_FILE or ./openai.api)" + hint
         )
     client = OpenAI(api_key=api_key, base_url=base_url) if base_url else OpenAI(api_key=api_key)
-    resp = client.chat.completions.create(model=model, messages=messages, temperature=temperature)
+    kwargs = {"model": model, "messages": messages, "temperature": temperature}
+    # Prefer OpenAI JSON guidance if requested
+    if json_mode:
+        try:
+            kwargs["response_format"] = {"type": "json_object"}  # type: ignore[assignment]
+        except Exception:
+            # If SDK doesn't support response_format, fall back silently
+            pass
+    resp = client.chat.completions.create(**kwargs)  # type: ignore[arg-type]
     choice = resp.choices[0]
     content = choice.message.content or ""
     return (content, {"endpoint": base_url or "https://api.openai.com", "fallback": "False"}) if return_meta else content

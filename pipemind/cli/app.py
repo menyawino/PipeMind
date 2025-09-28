@@ -274,10 +274,17 @@ def _filter_valid_goals(registry_yaml: str, goals: list[str]) -> tuple[list[str]
     kept: list[str] = []
     dropped: list[str] = []
     tools = list(reg.tools.values())
+    available_iotypes = {o.io_type for t in tools for o in t.outputs if o.io_type}
     for g in goals:
         if any(_m_match(t, g) for t in tools):
             kept.append(g)
         else:
+            # Accept io_type prefixes like 'vcf:' (and ignore any suffix after ':')
+            if ":" in g:
+                prefix = g.split(":", 1)[0]
+                if prefix in available_iotypes:
+                    kept.append(g)
+                    continue
             dropped.append(g)
     return kept, dropped
 
@@ -325,79 +332,121 @@ def agent(
       3. If JSON not found, user is prompted again.
       4. On success, a dynamic Snakefile is generated and (optionally) executed.
     """
+    # Fancy welcome banner (printed before any LLM call)
+    _banner = r"""
+
+    ██████╗ ██╗██████╗ ███████╗███╗   ███╗██╗███╗   ██╗██████╗ 
+    ██╔══██╗██║██╔══██╗██╔════╝████╗ ████║██║████╗  ██║██╔══██╗
+    ██████╔╝██║██████╔╝█████╗  ██╔████╔██║██║██╔██╗ ██║██║  ██║
+    ██╔═══╝ ██║██╔═══╝ ██╔══╝  ██║╚██╔╝██║██║██║██║╚██╗██║  ██║
+    ██║     ██║██║     ███████╗██║ ╚═╝ ██║██║██║ ╚████║██████╔╝
+    ╚═╝     ╚═╝╚═╝     ╚══════╝╚═╝     ╚═╝╚═╝╚═╝  ╚═══╝╚═════╝ 
+
+       PipeMind Agent · LLM-driven dynamic pipeline builder
+    """
+    print(f"[bold magenta]{_banner}[/bold magenta]")
+    if provider or model:
+        print(f"[dim]Session: provider={provider or 'auto'} model={model or 'auto'}[/dim]")
+
+    # Load registry once to guide the model with allowed io_types
+    try:
+        from pipemind.registry.schema import Registry
+        import yaml as _yaml
+        with open(registry_yaml, 'r', encoding='utf-8') as __f:
+            __reg = Registry.model_validate(_yaml.safe_load(__f))
+        __io_types = sorted({o.io_type for t in __reg.tools.values() for o in t.outputs if o.io_type and o.io_type != 'unknown'})
+    except Exception:
+        __io_types = []
+
+    io_hint = f" Allowed io_type prefixes: {', '.join(__io_types)}." if __io_types else ""
     intro = (
-        "You are a pipeline planning assistant. Given the user's bioinformatics aim, respond with JSON only.\n"
-        "JSON schema: {\n  'goal_outputs': [<path template(s) or io_type: prefixed spec>],\n  'known': {<wildcard>: <value>}\n}\n"
-        "List only outputs that the workflow should produce. Provide wildcards you can confidently fill; omit unknowns."
+        "You are a pipeline planning assistant. Return JSON only.\n"
+        "Schema: {\n  'goal_outputs': [<path template(s) or io_type:>],\n  'known': {<wildcard>: <value>}\n}\n"
+        "Notes: 'io_type:' selects the last rule producing that type (e.g., 'vcf:')."
+        + io_hint + " Use '{config.outdir}' and wildcards like '{sample}' in path templates when applicable."
     )
     history: list[dict[str, str]] = [
         {"role": "system", "content": intro},
     ]
-    typer.echo("[bold cyan]Pipeline Agent started. Describe your desired final output (e.g., 'a filtered VCF for sample S1').[/bold cyan]")
-    goals: list[str] = []
-    known: dict[str, str] = {}
-    for turn in range(1, max_turns + 1):
-        user_msg = typer.prompt(f"Turn {turn} - your instruction")
+    print("[bold cyan]Pipeline Agent started. Describe your desired final output (e.g., 'a filtered VCF for sample S1').[/bold cyan]")
+    current_turn = 1
+    history_turn = 0
+    while current_turn <= max_turns:
+        user_msg = typer.prompt(f"Turn {current_turn} - your instruction")
         history.append({"role": "user", "content": user_msg})
         try:
-            reply_raw = llm_chat(history, model=model, provider=provider)
-            reply = reply_raw[0] if isinstance(reply_raw, tuple) else reply_raw  # normalize to str
+            reply_raw = llm_chat(history, model=model, provider=provider, json_mode=True)
+            reply = reply_raw[0] if isinstance(reply_raw, tuple) else reply_raw
         except Exception as e:
             typer.secho(f"LLM error: {e}", fg="red")
+            current_turn += 1
             continue
         history.append({"role": "assistant", "content": reply})
         g, k = _extract_plan(reply)
-        # If model omitted known, try to parse from user's latest message
         if not k:
             try:
                 k = _json.loads(user_msg).get("known", {}) if user_msg.strip().startswith("{") else {}
             except Exception:
-                # simple regex for sample wildcards
                 m = _re.search(r"\{\"?sample\"?\s*:\s*\"?([A-Za-z0-9_.-]+)\"?\}", user_msg)
                 if m:
                     k = {"sample": m.group(1)}
-        # Filter out goals that registry cannot produce
         if g:
-            # Normalize model-provided paths (fix missing braces and reintroduce wildcards)
             g = _normalize_goal_templates(g, k)
             g_valid, g_dropped = _filter_valid_goals(registry_yaml, g)
             if g_dropped:
                 typer.secho(f"Dropping {len(g_dropped)} unsupported goal(s): {g_dropped}", fg="yellow")
                 if not g_valid:
-                    typer.secho("Tip: ensure goal outputs use templates (with wildcards and {config.*}). "
-                                "You can paste a JSON block with goal_outputs and known.", fg="yellow")
+                    more = (" Use one of the allowed io_type prefixes (e.g., 'vcf:') or a valid path template "
+                            "from this registry using wildcards like '{sample}' and '{config.outdir}'.")
+                    if __io_types:
+                        more += f" Allowed io_types: {', '.join(__io_types)}."
+                    typer.secho("Your JSON was valid, but no goals matched this registry." + more, fg="yellow")
             g = g_valid
-        if g:
-            goals, known = g, k
-            typer.secho(f"Extracted plan: goals={goals} known={known}", fg="green")
-            break
-        else:
-            typer.secho("No valid JSON plan detected. Please refine your description (model reply shown below):", fg="yellow")
+        if not g:
+            typer.secho("No acceptable plan yet. Provide a JSON object with goal_outputs and known.", fg="yellow")
             typer.echo(reply)
-    if not goals:
-        typer.secho("Failed to obtain a structured plan within turn limit.", fg="red")
-        raise typer.Exit(code=1)
-    # Generate & optionally run dynamic Snakefile
-    try:
-        result = materialize_and_optionally_run(
-            registry_yaml=registry_yaml,
-            goal_outputs=goals,
-            known=known,
-            workdir=".pipemind_runs/agent_last",
-            run=True,
-            dry_run=dry_run,
-            cores=cores,
+            current_turn += 1
+            continue
+        # Have a plan: try to generate & run
+        goals, known = g, k
+        typer.secho(f"Extracted plan: goals={goals} known={known}", fg="green")
+        try:
+            result = materialize_and_optionally_run(
+                registry_yaml=registry_yaml,
+                goal_outputs=goals,
+                known=known,
+                workdir=".pipemind_runs/agent_last",
+                run=True,
+                dry_run=dry_run,
+                cores=cores,
+            )
+        except Exception as e:
+            typer.secho(f"Generation/Execution error: {e}", fg="red")
+            # Feed error back to the model and continue
+            history.append({"role": "system", "content": f"Execution error occurred: {e}. Please propose a revised JSON plan."})
+            current_turn += 1
+            continue
+        typer.secho(f"Snakefile: {result['snakefile']}", fg="blue")
+        if result.get("stdout"):
+            typer.echo(result["stdout"][-800:])
+        # If success (or dry-run success), finish; else keep the conversation going
+        if result.get("returncode", 0) == 0:
+            typer.secho("Agent run complete.", fg="green")
+            return
+        # Failure path: provide a compact summary to the LLM and user, then continue
+        typer.secho("Execution failed. Returning to planning loop.", fg="red")
+        err_tail = (result.get("stderr") or "")[-400:]
+        out_tail = (result.get("stdout") or "")[-400:]
+        summary = (
+            "Snakemake execution failed. Here is a brief summary of the outputs. "
+            "Revise the plan to choose a different final artifact (possibly an earlier step) or adjust wildcards.\n"
+            f"STDOUT tail:\n{out_tail}\nSTDERR tail:\n{err_tail}"
         )
-    except Exception as e:
-        typer.secho(f"Generation/Execution error: {e}", fg="red")
-        raise typer.Exit(code=1)
-    typer.secho(f"Snakefile: {result['snakefile']}", fg="blue")
-    if result.get("stdout"):
-        typer.echo(result["stdout"][-800:])
-    if (not dry_run) and result.get("returncode", 1) != 0:
-        typer.secho("Execution failed.", fg="red")
-        raise typer.Exit(code=1)
-    typer.secho("Agent run complete.", fg="green")
+        history.append({"role": "system", "content": summary})
+        current_turn += 1
+    # If we exit the loop without success
+    typer.secho("No successful execution within the turn limit.", fg="red")
+    raise typer.Exit(code=1)
 
 
 @app.command()

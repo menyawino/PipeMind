@@ -199,7 +199,24 @@ def generate_snakefile(
     # Resolve concrete final targets
     concrete_targets: List[str] = []
     unresolved_final: List[str] = []
+    tools_all = list(registry.tools.values())
     for g in goal_outputs:
+        # If goal is io_type-prefixed (e.g., 'vcf:' or 'vcf:{sample}.vcf'), map to terminal tool's output template
+        if ":" in g:
+            iotype_prefix, _suffix = g.split(":", 1)
+            if iotype_prefix:
+                terminal_tools = [t for t in tools_all if any(o.io_type == iotype_prefix for o in t.outputs)]
+                if terminal_tools:
+                    t0 = terminal_tools[0]
+                    # pick the first output of that io_type
+                    cand = None
+                    for o in t0.outputs:
+                        if o.io_type == iotype_prefix and o.path_template:
+                            cand = o.path_template
+                            break
+                    if cand:
+                        # Always use the registry template to ensure the target matches an actual rule output
+                        g = cand
         # First resolve config variables inside goal pattern (so rule all target is concrete w.r.t config)
         try:
             g_resolved = _resolve_config_placeholders(g, config_map)
