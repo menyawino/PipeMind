@@ -66,12 +66,18 @@ def _collect_required_tools(registry: Registry, goals: List[str], known: Dict[st
             raise ValueError(f"No tool produces goal: {g}")
         local_steps: List[ToolSpec] = []
         visited: Set[str] = set()
+        in_progress: Set[str] = set()
 
         tools_by_rule = {t.rule: t for t in tools}
 
         def backchain(tool: ToolSpec):
+            # DFS with temporary marks to avoid cycles
             if tool.id in visited:
                 return
+            if tool.id in in_progress:
+                # cycle detected; stop descending this branch
+                return
+            in_progress.add(tool.id)
             # Recurse over inputs by io_type producer matching (first match heuristic)
             for inp in tool.inputs:
                 prod: ToolSpec | None = None
@@ -84,13 +90,14 @@ def _collect_required_tools(registry: Registry, goals: List[str], known: Dict[st
                     if cand and any(o.name == out_name for o in cand.outputs):
                         prod = cand
                 # 2. Fallback by io_type if still unresolved
-                if not prod:
+                if not prod and inp.io_type != 'unknown':
                     for t_ in tools:
                         if any(o.io_type == inp.io_type for o in t_.outputs):
                             prod = t_
                             break
                 if prod and prod.id != tool.id:
                     backchain(prod)
+            in_progress.discard(tool.id)
             visited.add(tool.id)
             local_steps.append(tool)
 
