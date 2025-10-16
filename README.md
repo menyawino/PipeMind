@@ -49,8 +49,6 @@ References/Citations
 - NetworkX: https://networkx.org/
  - Model Context Protocol Spec: https://spec.modelcontextprotocol.io/
 
-License: Apache-2.0
-
 How to add a new tool
 - Add a new Snakemake rule or extend an existing .smk in your workflow's rules directory
 - Re-run: pipemind parse <your-workflow-dir> -o pipemind/registry/registry.yaml
