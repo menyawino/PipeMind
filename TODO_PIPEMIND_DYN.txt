@@ -1,1 +1,0 @@
-Planning dynamic Snakemake workflow CLI integration.

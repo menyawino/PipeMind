@@ -6,7 +6,6 @@ Author-email: Your Name <you@example.com>
 License: Apache-2.0
 Requires-Python: >=3.10
 Description-Content-Type: text/markdown
-License-File: LICENSE
 Requires-Dist: pyyaml>=6.0.1
 Requires-Dist: pydantic>=2.7
 Requires-Dist: fastapi>=0.110
@@ -18,7 +17,6 @@ Requires-Dist: snakemake>=8.11
 Requires-Dist: fastmcp>=0.4.1
 Requires-Dist: httpx>=0.27
 Requires-Dist: openai>=1.0.0
-Dynamic: license-file
 
 # PipeMind
 
@@ -70,8 +68,6 @@ References/Citations
 - Pydantic: https://docs.pydantic.dev/
 - NetworkX: https://networkx.org/
  - Model Context Protocol Spec: https://spec.modelcontextprotocol.io/
-
-License: Apache-2.0
 
 How to add a new tool
 - Add a new Snakemake rule or extend an existing .smk in your workflow's rules directory

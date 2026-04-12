@@ -42,10 +42,7 @@ def _load_registry(registry_yaml: str) -> Registry:
         return Registry.model_validate(yaml.safe_load(f))
 
 
-SYMBOLIC_REF_RE = re.compile(r"^rules\.([a-zA-Z_][a-zA-Z0-9_]*)\.output\.([a-zA-Z_][a-zA-Z0-9_]*)$")
-
-
-def _collect_required_tools(registry: Registry, goals: List[str], known: Dict[str, Any]) -> Tuple[List[ToolSpec], List[str]]:
+def _collect_required_tools(registry_yaml: str, registry: Registry, goals: List[str], known: Dict[str, Any]) -> Tuple[List[ToolSpec], List[str]]:
     """Return ordered list of ToolSpec needed for goals and list of missing wildcards.
 
     We reuse build_dag_for_goal individually for each goal to recover ordering.
@@ -55,64 +52,55 @@ def _collect_required_tools(registry: Registry, goals: List[str], known: Dict[st
     seen: Set[str] = set()
     missing_all: Set[str] = set()
     for g in goals:
-        # Lightweight inline back-chain using builder helper functions without re-reading registry from disk.
-        from pipemind.dag.builder import _match_output as _m_match, _collect_wildcards as _m_wc  # type: ignore
-        tools = list(registry.tools.values())
-        terminal = [t for t in tools if _m_match(t, g)]
-        if not terminal and ":" in g:
-            iotype = g.split(":", 1)[0]
-            terminal = [t for t in tools if any(o.io_type == iotype for o in t.outputs)]
-        if not terminal:
-            raise ValueError(f"No tool produces goal: {g}")
-        local_steps: List[ToolSpec] = []
-        visited: Set[str] = set()
-        in_progress: Set[str] = set()
-
-        tools_by_rule = {t.rule: t for t in tools}
-
-        def backchain(tool: ToolSpec):
-            # DFS with temporary marks to avoid cycles
-            if tool.id in visited:
-                return
-            if tool.id in in_progress:
-                # cycle detected; stop descending this branch
-                return
-            in_progress.add(tool.id)
-            # Recurse over inputs by io_type producer matching (first match heuristic)
-            for inp in tool.inputs:
-                prod: ToolSpec | None = None
-                raw = inp.path_template or ""
-                # 1. Symbolic reference precedence: rules.<rule>.output.<name>
-                m = SYMBOLIC_REF_RE.match(raw)
-                if m:
-                    rule_name, out_name = m.groups()
-                    cand = tools_by_rule.get(rule_name)
-                    if cand and any(o.name == out_name for o in cand.outputs):
-                        prod = cand
-                # 2. Fallback by io_type if still unresolved
-                if not prod and inp.io_type != 'unknown':
-                    for t_ in tools:
-                        if any(o.io_type == inp.io_type for o in t_.outputs):
-                            prod = t_
-                            break
-                if prod and prod.id != tool.id:
-                    backchain(prod)
-            in_progress.discard(tool.id)
-            visited.add(tool.id)
-            local_steps.append(tool)
-
-        backchain(terminal[0])
-        # Record missing wildcard values for these steps
-        for step_tool in local_steps:
-            for wc in _m_wc(step_tool):  # type: ignore
-                if wc not in known:
-                    missing_all.add(wc)
-        # Merge into global ordered list
-        for t in local_steps:
-            if t.id not in seen:
-                ordered.append(t)
-                seen.add(t.id)
+        plan = build_dag_for_goal(registry_yaml, g, known)
+        for w in plan.get("missing", []):
+            missing_all.add(str(w))
+        for step in plan.get("steps", []):
+            tool_id = step.get("tool")
+            if not tool_id or tool_id in seen:
+                continue
+            tool = registry.tools.get(tool_id)
+            if tool is None:
+                raise ValueError(f"Planned tool not found in registry: {tool_id}")
+            ordered.append(tool)
+            seen.add(tool_id)
     return ordered, sorted(missing_all)
+
+
+def _canonical_template(path: str) -> str:
+    return WILDCARD_RE.sub("{}", path)
+
+
+def _resolve_iotype_goal_template(registry: Registry, goal: str) -> str:
+    """Convert io_type goals (e.g. vcf:) into a unique concrete output template."""
+    if ":" not in goal:
+        return goal
+    io_type, suffix = goal.split(":", 1)
+    if not io_type:
+        return goal
+
+    candidates: List[str] = []
+    for t in registry.tools.values():
+        for o in t.outputs:
+            if o.io_type == io_type and o.path_template:
+                candidates.append(o.path_template)
+    if not candidates:
+        return goal
+
+    if suffix:
+        suffix_canon = _canonical_template(suffix)
+        narrowed = [c for c in candidates if c == suffix or _canonical_template(c) == suffix_canon]
+        if narrowed:
+            candidates = narrowed
+
+    uniq = sorted(set(candidates))
+    if len(uniq) != 1:
+        raise ValueError(
+            f"Ambiguous io_type goal '{goal}'. Matching output templates: "
+            + ", ".join(uniq)
+            + ". Provide a concrete output path template."
+        )
+    return uniq[0]
 
 
 def _safe_substitute(template: str, mapping: Dict[str, Any]) -> str:
@@ -194,29 +182,14 @@ def generate_snakefile(
     """
     known = known or {}
     registry = _load_registry(registry_yaml)
-    tools, missing = _collect_required_tools(registry, goal_outputs, known)
+    tools, missing = _collect_required_tools(registry_yaml, registry, goal_outputs, known)
     config_map = _build_config_mapping(registry)
     # Resolve concrete final targets
     concrete_targets: List[str] = []
     unresolved_final: List[str] = []
-    tools_all = list(registry.tools.values())
     for g in goal_outputs:
-        # If goal is io_type-prefixed (e.g., 'vcf:' or 'vcf:{sample}.vcf'), map to terminal tool's output template
-        if ":" in g:
-            iotype_prefix, _suffix = g.split(":", 1)
-            if iotype_prefix:
-                terminal_tools = [t for t in tools_all if any(o.io_type == iotype_prefix for o in t.outputs)]
-                if terminal_tools:
-                    t0 = terminal_tools[0]
-                    # pick the first output of that io_type
-                    cand = None
-                    for o in t0.outputs:
-                        if o.io_type == iotype_prefix and o.path_template:
-                            cand = o.path_template
-                            break
-                    if cand:
-                        # Always use the registry template to ensure the target matches an actual rule output
-                        g = cand
+        # io_type goals must resolve to a unique output template.
+        g = _resolve_iotype_goal_template(registry, g)
         # First resolve config variables inside goal pattern (so rule all target is concrete w.r.t config)
         try:
             g_resolved = _resolve_config_placeholders(g, config_map)
@@ -295,7 +268,11 @@ def generate_snakefile(
             body_lines.append(f"    resources: {res_kv}")
         # Prefer original shell command
         if t.command:
-            body_lines.append(f"    shell: \"{_escape_shell(t.command)}\"")
+            try:
+                resolved_command = _resolve_config_placeholders(t.command, config_map)
+            except ValueError as e:
+                raise ValueError(f"Tool {t.id} command template error: {e}")
+            body_lines.append(f"    shell: \"{_escape_shell(resolved_command)}\"")
         elif t.script:
             body_lines.append(f"    script: '{t.script}'")
         elif t.run_code:

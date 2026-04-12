@@ -1,5 +1,6 @@
 from __future__ import annotations
 import os
+import pytest
 from pipemind.registry.parser import parse_workflow_to_registry
 from pipemind.dag.builder import build_dag_for_goal
 
@@ -15,3 +16,46 @@ def test_build_dag(tmp_path):
     # Goal by io type prefix (vcf:) should back-chain to variant_filtering rule
     plan = build_dag_for_goal(str(reg_path), "vcf:analysis/006_variant_filtering/{sample}.filtered.snp.vcf", {"sample":"S1"})
     assert plan["steps"], plan
+
+
+def test_build_dag_reports_missing_wildcards(tmp_path):
+    wf = tmp_path / "wf"
+    wf.mkdir()
+    (wf / "Snakefile").write_text(MOCK_SNAKEFILE)
+    reg_path = tmp_path / "registry.yaml"
+    parse_workflow_to_registry(str(wf), str(reg_path))
+
+    plan = build_dag_for_goal(str(reg_path), "analysis/006_variant_filtering/{sample}.filtered.snp.vcf", {})
+    assert "sample" in plan["missing"]
+
+
+def test_build_dag_rejects_ambiguous_iotype_producers(tmp_path):
+    snake = """
+rule a:
+    output:
+        out1="results/{sample}.a.txt"
+    shell:
+        "echo A > {output.out1}"
+
+rule b:
+    output:
+        out1="results/{sample}.b.txt"
+    shell:
+        "echo B > {output.out1}"
+
+rule merge:
+    input:
+        x="results/{sample}.txt"
+    output:
+        out="results/{sample}.final.txt"
+    shell:
+        "echo FINAL > {output.out}"
+"""
+    wf = tmp_path / "wf"
+    wf.mkdir()
+    (wf / "Snakefile").write_text(snake)
+    reg_path = tmp_path / "registry.yaml"
+    parse_workflow_to_registry(str(wf), str(reg_path))
+
+    with pytest.raises(ValueError, match="Ambiguous producer resolution"):
+        build_dag_for_goal(str(reg_path), "results/{sample}.final.txt", {"sample": "S1"})

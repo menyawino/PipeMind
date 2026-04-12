@@ -69,3 +69,45 @@ def test_materialize_and_dry_run():
     # stdout may be very quiet with --quiet; accept empty but ensure returncode ok
     if result.get("stdout"):
       assert "results/S2.final.txt" in result["stdout"] or result.get("returncode") == 0
+
+
+def test_generate_snakefile_rejects_ambiguous_iotype_goal():
+    reg = """
+tools:
+  snk.a:
+    id: snk.a
+    name: a
+    rule: a
+    inputs: []
+    outputs:
+      - name: out
+        io_type: txt
+        path_template: a/{sample}.txt
+    params: []
+    command: "echo A > a/{sample}.txt"
+    log_paths: []
+    resources: {}
+  snk.b:
+    id: snk.b
+    name: b
+    rule: b
+    inputs: []
+    outputs:
+      - name: out
+        io_type: txt
+        path_template: b/{sample}.txt
+    params: []
+    command: "echo B > b/{sample}.txt"
+    log_paths: []
+    resources: {}
+resources: {}
+"""
+    with tempfile.TemporaryDirectory() as td:
+        reg_path = os.path.join(td, "reg.yaml")
+        with open(reg_path, "w", encoding="utf-8") as f:
+            f.write(reg)
+        try:
+            generate_snakefile(reg_path, ["txt:"], {"sample": "S1"})
+            assert False, "Expected ambiguous io_type goals to raise"
+        except ValueError as e:
+          assert "Ambiguous" in str(e)
