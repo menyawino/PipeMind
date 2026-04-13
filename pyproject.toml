@@ -5,7 +5,7 @@ build-backend = "setuptools.build_meta"
 [project]
 name = "pipemind"
 version = "0.1.0"
-description = "LLM-driven, MCP-integrated, dynamically composable bioinformatics workflow system"
+description = "Convert Snakemake workflows into agent-usable bioinformatics tools and composition plans"
 authors = [{ name = "Your Name", email = "you@example.com" }]
 license = { text = "Apache-2.0" }
 readme = "README.md"

@@ -1,4 +1,4 @@
-afrom __future__ import annotations
+from __future__ import annotations
 
 from pipemind.mcp_server.server import make_tool_callable
 from pipemind.registry.schema import ToolSpec, IODecl

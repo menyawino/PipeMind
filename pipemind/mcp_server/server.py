@@ -11,6 +11,7 @@ from fastmcp.tools import Tool
 from pydantic import BaseModel
 
 from pipemind.registry.schema import Registry, ToolSpec
+from pipemind.tools.runner import resolve_snakemake_command
 from pipemind.utils.audit import write_invocation_log, file_sha256
 from pipemind.snakemake.generator import materialize_and_optionally_run
 
@@ -69,7 +70,7 @@ def make_tool_callable(tool: ToolSpec) -> Callable[..., Any]:
         # Invoke snakemake to build the target
         snakefile = os.getenv("PIPEMIND_SNAKEFILE", "WES-Pipeline-Snakemake/workflow/Snakefile")
         cmd = [
-            "snakemake",
+            *resolve_snakemake_command(),
             "-s", snakefile,
             target,
             "-c", "1",
@@ -157,9 +158,17 @@ def create_app(registry_path: str) -> tuple[FastAPI, FastMCP]:
                 t = "number"
             elif p.param_type == "bool":
                 t = "boolean"
+            elif p.param_type == "json":
+                t = ["object", "array", "string", "number", "integer", "boolean"]
             else:
                 t = "string"
+            description = p.description
+            if p.binding_kind and p.binding_target:
+                binding_note = f"Binds dynamic {p.binding_kind} '{p.binding_target}'."
+                description = f"{description} {binding_note}" if description else binding_note
             props[p.name] = {"type": t}
+            if description:
+                props[p.name]["description"] = description
             if p.required:
                 required.append(p.name)
 
@@ -175,10 +184,15 @@ def create_app(registry_path: str) -> tuple[FastAPI, FastMCP]:
             "description": "Optional explicit concrete target path. Overrides output_name/wildcard expansion.",
         }
 
+        description = tool.description or tool.name
+        notes = tool.agent_ready_notes or tool.composition_ready_notes
+        if notes:
+            description = description + " [agent notes: " + "; ".join(notes) + "]"
+
         mcp.add_tool(
             CallableTool(
                 name=tool.id,
-                description=tool.description or tool.name,
+                description=description,
                 parameters={
                     "type": "object",
                     "properties": props,

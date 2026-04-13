@@ -9,6 +9,7 @@ from pipemind.registry.parser import parse_workflow_to_registry
 from pipemind.dag.builder import build_dag_for_goal
 from pipemind.cli.intake import required_fields_for_goal, interactive_collect
 from pipemind.tools.generate_wrappers import generate as gen_wrappers
+from pipemind.tools.runner import resolve_snakemake_command
 from pipemind.utils.llm import chat as llm_chat
 from pipemind.snakemake.generator import materialize_and_optionally_run
 import json as _json
@@ -24,10 +25,17 @@ def parse(
     workflow_dir: str = typer.Argument(..., help="Path to Snakemake workflow directory"),
     out_yaml: str = typer.Option("pipemind/registry/registry.yaml", help="Output registry YAML path"),
     keep_shell_comments: bool = typer.Option(True, help="Preserve all shell text including comments in commands"),
+    strict: bool = typer.Option(False, help="Fail if PipeMind cannot compile the workflow or if any imported rule is not fully agent-ready"),
 ):
     """Parse Snakemake rules into a typed registry YAML."""
-    reg = parse_workflow_to_registry(workflow_dir, out_yaml, keep_shell_comments=keep_shell_comments)
-    print(f"[green]Wrote registry with {len(reg.tools)} tools to {out_yaml}")
+    reg = parse_workflow_to_registry(workflow_dir, out_yaml, keep_shell_comments=keep_shell_comments, strict=strict)
+    parser_meta = reg.metadata.get("parser", {})
+    print(
+        "[green]Wrote registry with "
+        f"{len(reg.tools)} tools to {out_yaml} "
+        f"(mode={parser_meta.get('ingestion_mode', 'unknown')}, "
+        f"agent_ready={parser_meta.get('agent_ready_rule_count', 0)}/{len(reg.tools)})"
+    )
 
 
 @app.command()
@@ -76,7 +84,7 @@ def run(
     """Run Snakemake for the given target."""
     import subprocess
     snakefile_path = snakefile if snakefile else os.path.join(workflow_dir, "Snakefile")
-    cmd = ["snakemake", "-s", snakefile_path, target, "-c", str(cores), "--rerun-incomplete", "--printshellcmds"]
+    cmd = [*resolve_snakemake_command(), "-s", snakefile_path, target, "-c", str(cores), "--rerun-incomplete", "--printshellcmds"]
     res = subprocess.run(cmd, capture_output=True, text=True)
     print(res.stdout)
     if res.returncode != 0:

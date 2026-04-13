@@ -25,6 +25,9 @@ class ParamDecl(BaseModel):
     default: Optional[Union[int, float, str, bool, dict, list]] = None
     description: Optional[str] = None
     enum: Optional[List[str]] = None
+    binding_kind: Optional[Literal["input","param","resource"]] = None
+    binding_target: Optional[str] = None
+    agent_supplied: bool = False
 
 class ToolSpec(BaseModel):
     id: str
@@ -51,6 +54,12 @@ class ToolSpec(BaseModel):
     group: Optional[str] = None
     priority: Optional[int] = None
     cache: Optional[bool] = None
+    agent_ready: bool = Field(default=True, description="Whether the rule can be exposed as a reliable agent-facing tool without unresolved dynamic IO.")
+    agent_ready_notes: List[str] = Field(default_factory=list, description="Reasons a rule is only partially agent-compatible.")
+    composition_ready: bool = Field(default=True, description="Whether the rule can be auto-composed without explicit dynamic bindings.")
+    composition_ready_notes: List[str] = Field(default_factory=list, description="Reasons a rule cannot be composed automatically.")
+    source_snakefile: Optional[str] = None
+    source_lineno: Optional[int] = None
 
 class ResourceSpec(BaseModel):
     id: str
@@ -63,4 +72,5 @@ class ResourceSpec(BaseModel):
 class Registry(BaseModel):
     tools: Dict[str, ToolSpec]
     resources: Dict[str, ResourceSpec] = {}
+    metadata: Dict[str, Any] = Field(default_factory=dict)
 

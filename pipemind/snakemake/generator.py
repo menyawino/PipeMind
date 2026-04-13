@@ -31,6 +31,7 @@ import textwrap
 
 from pipemind.registry.schema import ToolSpec, Registry
 from pipemind.dag.builder import build_dag_for_goal
+from pipemind.tools.runner import resolve_snakemake_command
 import yaml
 
 WILDCARD_RE = re.compile(r"\{([a-zA-Z_][a-zA-Z0-9_]*)\}")
@@ -112,11 +113,22 @@ def _safe_substitute(template: str, mapping: Dict[str, Any]) -> str:
     return WILDCARD_RE.sub(repl, template)
 
 
-def _format_kv_block(kind: str, items: List[Tuple[str, str]]) -> str:
-    """Format a generic key/value block (all values quoted)."""
+def _format_string_kv_block(kind: str, items: List[Tuple[str, str]]) -> str:
+    """Format a generic key/value block with string values quoted."""
     if not items:
         return ""
     inner = ",\n        ".join([f"{k}='{v}'" for k, v in items])
+    return f"    {kind}:\n        {inner}\n"
+
+
+def _python_literal(value: Any) -> str:
+    return repr(value)
+
+
+def _format_python_kv_block(kind: str, items: List[Tuple[str, Any]]) -> str:
+    if not items:
+        return ""
+    inner = ",\n        ".join([f"{k}={_python_literal(v)}" for k, v in items])
     return f"    {kind}:\n        {inner}\n"
 
 
@@ -241,20 +253,32 @@ def generate_snakefile(
             except ValueError as e:
                 raise ValueError(f"Tool {t.id} output template error: {e}")
             out_items.append((nm, resolved_out))
-        param_items: List[Tuple[str, str]] = []
+        param_items: List[Tuple[str, Any]] = []
+        resource_items: Dict[str, Any] = dict(t.resources)
         for p in t.params:
-            # Store description or empty placeholder; user can override via CLI config
-            if p.default is not None:
-                param_items.append((p.name, str(p.default)))
+            value = known.get(p.name, p.default)
+            if value is None:
+                if p.required:
+                    raise ValueError(f"Tool {t.id} requires a value for '{p.name}'")
+                continue
+            target_name = p.binding_target or p.name
+            if p.binding_kind == "input":
+                is_expr = isinstance(value, str) and (value.startswith("rules.") or value.startswith("expand("))
+                in_items_expr.append((target_name, str(value), is_expr))
+                continue
+            if p.binding_kind == "resource":
+                resource_items[target_name] = value
+                continue
+            param_items.append((target_name, value))
         # Compose rule body
         body_lines = []
         body_lines.append(f"rule {t.rule}:")
         if in_items_expr:
             body_lines.append(_format_input_block(in_items_expr).rstrip())
         if out_items:
-            body_lines.append(_format_kv_block("output", out_items).rstrip())
+            body_lines.append(_format_string_kv_block("output", out_items).rstrip())
         if param_items:
-            body_lines.append(_format_kv_block("params", param_items).rstrip())
+            body_lines.append(_format_python_kv_block("params", param_items).rstrip())
         if t.threads:
             body_lines.append(f"    threads: {t.threads}")
         if t.conda_env:
@@ -263,9 +287,8 @@ def generate_snakefile(
             body_lines.append(f"    wrapper: '{t.wrapper}'")
         if t.container:
             body_lines.append(f"    container: '{t.container}'")
-        if t.resources:
-            res_kv = ", ".join([f"{k}={v!r}" for k, v in t.resources.items()])
-            body_lines.append(f"    resources: {res_kv}")
+        if resource_items:
+            body_lines.append(_format_python_kv_block("resources", list(resource_items.items())).rstrip())
         # Prefer original shell command
         if t.command:
             try:
@@ -309,11 +332,8 @@ def materialize_and_optionally_run(
         f.write(content)
     result: Dict[str, Any] = {"snakefile": snakefile_path, "workdir": wd}
     if run:
-        import subprocess, shutil
-        snakemake_bin = shutil.which("snakemake")
-        if not snakemake_bin:
-            raise RuntimeError("Snakemake executable not found in PATH")
-        cmd = [snakemake_bin, "-s", snakefile_path, "-c", str(cores)]
+        import subprocess
+        cmd = [*resolve_snakemake_command(), "-s", snakefile_path, "-c", str(cores)]
         if dry_run:
             cmd.append("-n")
         cmd.extend(["--rerun-incomplete", "--printshellcmds", "--quiet"])
