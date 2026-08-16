@@ -1,0 +1,356 @@
+from __future__ import annotations
+"""Dynamic Snakemake workflow materialisation.
+
+This module converts a subset of the registry (tools required to produce one or
+more goal outputs) into a self-contained Snakefile containing:
+
+rule all:
+    input: <resolved goal targets>
+
+Plus one rule per required ToolSpec reconstructed from its recorded metadata.
+
+Reliability features:
+ - Validation of missing wildcard values required to fully resolve `rule all`.
+ - Stable ordering (topological-ish) based on back-chaining order used by
+   `build_dag_for_goal` to reduce spurious diffs.
+ - Defensive escaping of quotes in shell/paths.
+ - Optional dry-run safe generation (no execution side effects).
+
+Assumptions:
+ - Path templates already Snakemake-compatible (registry.parser enforces).
+ - Wildcards that remain unresolved in intermediate rules are acceptable; only
+   the `rule all` targets must be concrete for an execution run.
+"""
+
+from dataclasses import dataclass
+from typing import Dict, List, Iterable, Set, Any, Tuple
+import os
+import re
+import time
+import textwrap
+
+from pipemind.registry.schema import ToolSpec, Registry
+from pipemind.dag.builder import build_dag_for_goal
+from pipemind.tools.runner import resolve_snakemake_command
+import yaml
+
+WILDCARD_RE = re.compile(r"\{([a-zA-Z_][a-zA-Z0-9_]*)\}")
+CONFIG_VAR_RE = re.compile(r"\{config\.([a-zA-Z_][a-zA-Z0-9_]*)\}")
+
+
+def _load_registry(registry_yaml: str) -> Registry:
+    with open(registry_yaml, "r", encoding="utf-8") as f:
+        return Registry.model_validate(yaml.safe_load(f))
+
+
+def _collect_required_tools(registry_yaml: str, registry: Registry, goals: List[str], known: Dict[str, Any]) -> Tuple[List[ToolSpec], List[str]]:
+    """Return ordered list of ToolSpec needed for goals and list of missing wildcards.
+
+    We reuse build_dag_for_goal individually for each goal to recover ordering.
+    Duplicates are removed preserving first-seen order.
+    """
+    ordered: List[ToolSpec] = []
+    seen: Set[str] = set()
+    missing_all: Set[str] = set()
+    for g in goals:
+        plan = build_dag_for_goal(registry_yaml, g, known)
+        for w in plan.get("missing", []):
+            missing_all.add(str(w))
+        for step in plan.get("steps", []):
+            tool_id = step.get("tool")
+            if not tool_id or tool_id in seen:
+                continue
+            tool = registry.tools.get(tool_id)
+            if tool is None:
+                raise ValueError(f"Planned tool not found in registry: {tool_id}")
+            ordered.append(tool)
+            seen.add(tool_id)
+    return ordered, sorted(missing_all)
+
+
+def _canonical_template(path: str) -> str:
+    return WILDCARD_RE.sub("{}", path)
+
+
+def _resolve_iotype_goal_template(registry: Registry, goal: str) -> str:
+    """Convert io_type goals (e.g. vcf:) into a unique concrete output template."""
+    if ":" not in goal:
+        return goal
+    io_type, suffix = goal.split(":", 1)
+    if not io_type:
+        return goal
+
+    candidates: List[str] = []
+    for t in registry.tools.values():
+        for o in t.outputs:
+            if o.io_type == io_type and o.path_template:
+                candidates.append(o.path_template)
+    if not candidates:
+        return goal
+
+    if suffix:
+        suffix_canon = _canonical_template(suffix)
+        narrowed = [c for c in candidates if c == suffix or _canonical_template(c) == suffix_canon]
+        if narrowed:
+            candidates = narrowed
+
+    uniq = sorted(set(candidates))
+    if len(uniq) != 1:
+        raise ValueError(
+            f"Ambiguous io_type goal '{goal}'. Matching output templates: "
+            + ", ".join(uniq)
+            + ". Provide a concrete output path template."
+        )
+    return uniq[0]
+
+
+def _safe_substitute(template: str, mapping: Dict[str, Any]) -> str:
+    def repl(m):
+        key = m.group(1)
+        if key in mapping and mapping[key] is not None:
+            return str(mapping[key])
+        return "{" + key + "}"  # leave unresolved
+    return WILDCARD_RE.sub(repl, template)
+
+
+def _format_string_kv_block(kind: str, items: List[Tuple[str, str]]) -> str:
+    """Format a generic key/value block with string values quoted."""
+    if not items:
+        return ""
+    inner = ",\n        ".join([f"{k}='{v}'" for k, v in items])
+    return f"    {kind}:\n        {inner}\n"
+
+
+def _python_literal(value: Any) -> str:
+    return repr(value)
+
+
+def _format_python_kv_block(kind: str, items: List[Tuple[str, Any]]) -> str:
+    if not items:
+        return ""
+    inner = ",\n        ".join([f"{k}={_python_literal(v)}" for k, v in items])
+    return f"    {kind}:\n        {inner}\n"
+
+
+def _format_input_block(items: List[Tuple[str, str, bool]]) -> str:
+    """Format input block allowing python expressions (unquoted) when flagged.
+
+    items: list of (name, value, is_expr)
+    """
+    if not items:
+        return ""
+    rendered: List[str] = []
+    for name, value, is_expr in items:
+        if is_expr:
+            rendered.append(f"{name}={value}")
+        else:
+            rendered.append(f"{name}='{value}'")
+    inner = ",\n        ".join(rendered)
+    return f"    input:\n        {inner}\n"
+
+
+def _escape_shell(cmd: str) -> str:
+    # Basic sanitisation; we rely on Snakemake quoting for more complex cases.
+    return cmd.replace('"', '\\"')
+
+
+def _build_config_mapping(registry: Registry) -> dict:
+    """Derive a mapping of config variable names -> concrete values using registry resources.
+
+    Heuristic: any resource with id starting 'cfg.' exposes its name as a config key.
+    Example: resource id cfg.outdir, name outdir, uri '../output_38' -> {'outdir': '../output_38'}
+    """
+    mapping: dict[str, str] = {}
+    for r in registry.resources.values():
+        if r.id.startswith("cfg."):
+            mapping[r.name] = r.uri
+    return mapping
+
+
+def _resolve_config_placeholders(path: str, config_map: dict[str, str]) -> str:
+    """Replace occurrences of {config.<key>} with concrete values from config_map.
+
+    If a {config.<key>} placeholder is encountered without a known value we raise
+    to avoid Snakemake interpreting it as a wildcard with a dot (invalid) leading to confusion.
+    """
+    def repl(m: re.Match[str]) -> str:
+        key = m.group(1)
+        if key not in config_map:
+            raise ValueError(f"No value available to substitute config variable '{{config.{key}}}'")
+        return config_map[key]
+    return CONFIG_VAR_RE.sub(repl, path)
+
+
+def generate_snakefile(
+    registry_yaml: str,
+    goal_outputs: List[str],
+    known: Dict[str, Any] | None = None,
+    enforce_all_concrete: bool = True,
+) -> str:
+    """Return text of a Snakefile for the requested goals.
+
+    If `enforce_all_concrete` is True, unresolved wildcards in final goal target
+    paths raise an error (they would make rule all ambiguous).
+    """
+    known = known or {}
+    registry = _load_registry(registry_yaml)
+    tools, missing = _collect_required_tools(registry_yaml, registry, goal_outputs, known)
+    config_map = _build_config_mapping(registry)
+    # Resolve concrete final targets
+    concrete_targets: List[str] = []
+    unresolved_final: List[str] = []
+    for g in goal_outputs:
+        # io_type goals must resolve to a unique output template.
+        g = _resolve_iotype_goal_template(registry, g)
+        # First resolve config variables inside goal pattern (so rule all target is concrete w.r.t config)
+        try:
+            g_resolved = _resolve_config_placeholders(g, config_map)
+        except ValueError as e:
+            raise ValueError(f"Goal '{g}' error: {e}")
+        g = g_resolved
+        tgt = _safe_substitute(g, known)
+        if WILDCARD_RE.search(tgt):
+            unresolved_final.append(tgt)
+        concrete_targets.append(tgt)
+    if enforce_all_concrete and unresolved_final:
+        raise ValueError(
+            "Unresolved wildcards in goal outputs: " + ", ".join(unresolved_final) +
+            f". Provide values for: {', '.join(sorted({w for t in unresolved_final for w in WILDCARD_RE.findall(t)}))}"
+        )
+
+    header = textwrap.dedent(
+        f"""# Auto-generated by pipemind.snakemake.generator at {time.strftime('%Y-%m-%d %H:%M:%S')}\n"""
+    )
+    rule_all = "rule all:\n    input:\n        " + ",\n        ".join([f"'{t}'" for t in concrete_targets]) + "\n\n"
+
+    rule_texts: List[str] = []
+    for t in tools:
+        # Build input/output param blocks
+        in_items_expr: List[Tuple[str, str, bool]] = []
+        for i, idecl in enumerate(t.inputs):
+            nm = idecl.name if not idecl.name.startswith("_") else f"in{i+1}"
+            if not idecl.path_template:
+                continue
+            raw = idecl.path_template
+            is_expr = False
+            if raw.startswith("rules.") or raw.startswith("expand("):
+                # Keep python expression as-is
+                resolved_in = raw
+                is_expr = True
+            else:
+                try:
+                    resolved_in = _resolve_config_placeholders(raw, config_map)
+                except ValueError as e:
+                    raise ValueError(f"Tool {t.id} input template error: {e}")
+            in_items_expr.append((nm, resolved_in, is_expr))
+        out_items: List[Tuple[str, str]] = []
+        for i, odecl in enumerate(t.outputs):
+            nm = odecl.name if not odecl.name.startswith("_") else f"out{i+1}"
+            if not odecl.path_template:
+                continue
+            try:
+                resolved_out = _resolve_config_placeholders(odecl.path_template, config_map)
+            except ValueError as e:
+                raise ValueError(f"Tool {t.id} output template error: {e}")
+            out_items.append((nm, resolved_out))
+        param_items: List[Tuple[str, Any]] = []
+        resource_items: Dict[str, Any] = dict(t.resources)
+        for p in t.params:
+            value = known.get(p.name, p.default)
+            if value is None:
+                if p.required:
+                    raise ValueError(f"Tool {t.id} requires a value for '{p.name}'")
+                continue
+            target_name = p.binding_target or p.name
+            if p.binding_kind == "input":
+                is_expr = isinstance(value, str) and (value.startswith("rules.") or value.startswith("expand("))
+                in_items_expr.append((target_name, str(value), is_expr))
+                continue
+            if p.binding_kind == "resource":
+                resource_items[target_name] = value
+                continue
+            param_items.append((target_name, value))
+        # Compose rule body
+        body_lines = []
+        body_lines.append(f"rule {t.rule}:")
+        if in_items_expr:
+            body_lines.append(_format_input_block(in_items_expr).rstrip())
+        if out_items:
+            body_lines.append(_format_string_kv_block("output", out_items).rstrip())
+        if param_items:
+            body_lines.append(_format_python_kv_block("params", param_items).rstrip())
+        if t.threads:
+            body_lines.append(f"    threads: {t.threads}")
+        if t.conda_env:
+            body_lines.append(f"    conda: '{t.conda_env}'")
+        if t.wrapper:
+            body_lines.append(f"    wrapper: '{t.wrapper}'")
+        if t.container:
+            body_lines.append(f"    container: '{t.container}'")
+        if resource_items:
+            body_lines.append(_format_python_kv_block("resources", list(resource_items.items())).rstrip())
+        # Prefer original shell command
+        if t.command:
+            try:
+                resolved_command = _resolve_config_placeholders(t.command, config_map)
+            except ValueError as e:
+                raise ValueError(f"Tool {t.id} command template error: {e}")
+            body_lines.append(f"    shell: \"{_escape_shell(resolved_command)}\"")
+        elif t.script:
+            body_lines.append(f"    script: '{t.script}'")
+        elif t.run_code:
+            # embed run block preserving indentation
+            rc = textwrap.indent(t.run_code, "        ")
+            body_lines.append("    run:")
+            body_lines.append(rc)
+        else:
+            body_lines.append("    shell: 'echo " + t.rule + " executed'" )
+        rule_texts.append("\n".join([ln for ln in body_lines if ln.strip() != ""]))
+
+    return header + rule_all + "\n\n".join(rule_texts) + "\n"
+
+
+def materialize_and_optionally_run(
+    registry_yaml: str,
+    goal_outputs: List[str],
+    known: Dict[str, Any] | None = None,
+    workdir: str | None = None,
+    run: bool = False,
+    dry_run: bool = False,
+    cores: int = 4,
+) -> Dict[str, Any]:
+    """Generate a Snakefile and optionally execute snakemake.
+
+    Returns metadata including path to Snakefile and (if run) execution details.
+    """
+    known = known or {}
+    wd = workdir or os.path.join(".pipemind_runs", time.strftime("%Y%m%d-%H%M%S"))
+    os.makedirs(wd, exist_ok=True)
+    snakefile_path = os.path.join(wd, "Snakefile")
+    content = generate_snakefile(registry_yaml, goal_outputs, known)
+    with open(snakefile_path, "w", encoding="utf-8") as f:
+        f.write(content)
+    result: Dict[str, Any] = {"snakefile": snakefile_path, "workdir": wd}
+    if run:
+        import subprocess
+        cmd = [*resolve_snakemake_command(), "-s", snakefile_path, "-c", str(cores)]
+        if dry_run:
+            cmd.append("-n")
+        cmd.extend(["--rerun-incomplete", "--printshellcmds", "--quiet"])
+        proc = subprocess.run(cmd, capture_output=True, text=True)
+        # Post-process common errors to provide actionable guidance
+        stdout, stderr = proc.stdout, proc.stderr
+        if proc.returncode != 0 and ("MissingInputException" in stdout or "MissingInputException" in stderr):
+            hint = ("\nHint: The dynamic reducer could not identify a chain of tools that produces an "
+                    "upstream input. You may have requested a goal whose producing rule depends on a "
+                    "branch not inferred by simple io_type matching. Consider specifying an earlier "
+                    "goal (e.g. the immediate predecessor output) or extending the registry to include "
+                    "a unique io_type for ambiguous artifacts.")
+            stdout += hint
+        result.update({
+            "returncode": proc.returncode,
+            "stdout": stdout[-8000:],
+            "stderr": stderr[-8000:],
+            "cmd": " ".join(cmd),
+        })
+    return result

@@ -1,0 +1,10 @@
+Assuming unrestricted shared filesystem usage.
+None
+host: DESKTOP-PPSBENQ
+Building DAG of jobs...
+MissingInputException in rule annotate_variants in file "/mnt/d/omar_wsl/omar/DAPA/PipeMind/.pipemind_runs/agent_last/Snakefile", line 6:
+Missing input files for rule annotate_variants:
+    output: ../output_38/analysis/007_annotation/sample1.annotated.vcf
+    wildcards: sample=sample1
+    affected files:
+        ../output_38/analysis/006_variant_filtering/sample1.filtered.vcf
